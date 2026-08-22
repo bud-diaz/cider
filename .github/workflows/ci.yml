@@ -50,3 +50,19 @@ jobs:
 
       - name: Test (${{ matrix.configuration }})
         run: swift test --configuration ${{ matrix.configuration }}
+
+      # Each example under examples/ is an independent SwiftPM package (a
+      # path dependency on the repo root, the same as a real project would
+      # use a tagged version), so `swift build`/`swift test` at the repo
+      # root never touches them. Nothing else verifies that application
+      # code outside this repo can actually use the compatibility API --
+      # B9 hit exactly that gap (Color/ImageSource weren't reachable
+      # without a CiderCore product dependency the example never declared)
+      # with no CI signal to catch it.
+      - name: Build example apps (${{ matrix.configuration }})
+        run: |
+          for example in examples/*/; do
+            echo "::group::$example"
+            (cd "$example" && swift build --configuration ${{ matrix.configuration }})
+            echo "::endgroup::"
+          done

@@ -9,20 +9,20 @@ session, whether or not the milestone finished.
 
 ## Status
 
-Part A (Stage 1 close-out), **B1** (Image), **B2** (layout/rendering
-foundations), **B3** (host input plumbing), **B4** (ScrollView), **B5**
-(TextField), **B6** (List) and **B7** (navigation stack) are done. **B8**
-(modal/presentation surface) is implemented and pushed, CI not yet
-checked by this session — check its result before starting **B9**
-(reference app + Stage 2 exit criterion), the last milestone in this plan.
+Every milestone in this plan (Part A, B1-B9) is implemented. **B9** is
+pushed but this session had not confirmed its CI result as of this
+writing — check it (and B8's, see below) before treating the plan as
+closed. If both are green, this plan is done: what's left is genuinely
+Stage 3+ work, not anything this plan scoped.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
 CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3
 (8676a50), B4 (52590ca), B5 (a91f40f) and B7 (0ec9d66). B6's first push
 (db2a5df) **failed CI** — the first real test failure this plan has hit;
-the fix (31c3f79) came back green (run 32581743172). B8's push has not
-been checked yet by this session — check it before building B9 on top.
+the fix (31c3f79) came back green (run 32581743172). B8's and B9's pushes
+have not been checked yet by this session — check both before treating
+this plan as fully closed.
 
 **Caveat carried from B3, still true, now more relevant**: CI's `swift
 build`/`swift test` compile the X11 C shim but never execute it — every
@@ -429,6 +429,66 @@ confirm actual typing works before this is trusted end-to-end.
     frame, no second child box when nothing's presented) and
     `layoutCentered` (fills bounds for a modal root instead of
     centring).
+- **B9** — reference app + Stage 2 exit criterion:
+  - **Found and fixed a real, previously-latent gap while writing the
+    reference app, not a test bug**: `CiderCore` (`Color`, `FontRequest`,
+    `ImageSource`, ...) was never declared as a library product in the
+    root `Package.swift`, and `CiderUI` didn't re-export it either. Every
+    prior example (`hello-cider`) only ever used `Text`/`Button`/`VStack`
+    with no explicit `Color`/`ImageSource` literal, so nothing had
+    exercised this path. The moment B9's reference app tried
+    `Image(.solid(Color(hex: ...), ...))` — the first application-level
+    use of `Image` anywhere in the repo — it would have failed to
+    compile: a downstream SwiftPM package that only depends on the
+    `CiderUI` product has no way to `import CiderCore`, since it isn't a
+    product at all. Fixed with `@_exported import CiderCore` added to
+    `compatibility/Sources/CiderUI/CiderApp.swift`, so `import CiderUI`
+    alone brings every CiderCore type its own public API surface
+    (`Text.foregroundColor(_:)`, `Image.init(_:)`, ...) already required
+    callers to name. `CiderUITree` stays unexported — nothing
+    application-facing hands out a `UINode` to name. This would have
+    blocked every application author from using `Image` or an explicit
+    `Color`, not just this reference app; worth a maintainer's attention
+    even though it never leaked into a previously-shipped example.
+  - **`examples/ui-showcase/`** — new reference app (Package.swift,
+    Cider.yaml, README.md, `UIShowcaseApp.swift`), reusing
+    `examples/hello-cider`'s exact shape. One app instead of the four
+    separate ones `docs/02-product-requirements.md` §5 lists
+    ("navigation/list app", "form/text-input app", "image-loading app",
+    "modal/presentation example") — deliberate, matching the plan's own
+    phrasing ("reference apps... exercise navigation+list, form/
+    text-input, image-loading, and modal/presentation," not "four
+    separate apps"), and because each primitive already has isolated
+    conformance coverage from B1-B8; the reference app's job is proving
+    they compose, which needs one app, not four. Structure: `Modal`
+    wraps a `NavigationView` (so "About" can present over *any* pushed
+    screen, not just the root); the root is a `List` of items; tapping
+    one pushes a detail screen with an `Image` and a `TextField` bound to
+    shared state (no per-item storage — that's Stage 3).
+  - **CI gap found and fixed alongside it**: `.github/workflows/ci.yml`'s
+    `swift build`/`swift test` only ever ran at the repo root — every
+    `examples/*` package is an independent SwiftPM package (a path
+    dependency on the repo root, the way a real project would use a
+    tagged version), so nothing in CI had ever built `hello-cider`
+    either, let alone the new app. Added a "Build example apps" step
+    that `swift build`s every directory under `examples/`, in both the
+    debug and release jobs — the same mechanism that would have caught
+    the `@_exported import` gap above automatically, if it had existed
+    before this session hit the gap by hand.
+  - Visual-regression baselines for the new node kinds were **not**
+    recorded, the same reason B1's Image baseline wasn't: no Swift
+    toolchain in this session to run `CIDER_UPDATE_BASELINES=1 swift
+    test`. Every new primitive does have conformance coverage
+    (`UI-IMAGE-001`/`UI-SCROLL-001`/`UI-TEXTFIELD-001`/`UI-LIST-001`/
+    `NAV-PUSH-001`/`NAV-POP-001`/`UI-MODAL-001`), which is real,
+    CI-enforced test coverage — just not the pixel-level visual
+    regression the plan's Verification section also asked for. Carried
+    into Open issues below alongside B1's.
+  - `README.md` — status line, "What works today," "Current
+    limitations," the roadmap table (Stage 2 now **done**, Stage 3
+    marked **next**) and the conformance-ID table all updated; they had
+    drifted since Stage 0 (still read "Text, Button and VStack only" and
+    "103 tests" before this).
 
 ## Deviations
 
@@ -501,6 +561,27 @@ confirm actual typing works before this is trusted end-to-end.
   whatever that push actually changed. Whoever has a real toolchain next
   should re-add a case like it, record the baseline, eyeball the `.ppm`,
   and commit both together in one change.
+- **No Stage 2 primitive after B1 has a visual-regression baseline
+  either**, same root cause: `ScrollView`, `TextField`, `List`,
+  `NavigationView` and `Modal` all have conformance coverage but no
+  pixel-level baseline. `tests/visual/VisualRegressionTests.swift`'s
+  harness is unchanged and generalizes to all of them (confirmed by
+  inspection, same as B9's HANDOFF entry notes) — this is purely "needs a
+  session with a real Swift toolchain to record and eyeball each one,"
+  not a design gap.
+- **B9's reference app (`examples/ui-showcase`) has never actually been
+  run.** CI now *builds* it (see B9's Done entry), which is real signal
+  that the compatibility API is reachable and the app type-checks, but
+  nobody has run it under `cider run`/Xvfb and looked at it, tapped
+  through it, or confirmed the modal/navigation/list interaction actually
+  feels right end-to-end. Do that before calling Stage 2 "done" in any
+  stronger sense than "the pipeline compiles and the conformance suite
+  passes."
+- **The `@_exported import CiderCore` fix (see B9) was found by hand,
+  reading code, not by a failing build** — CI had never built any example
+  app before this session added that step, so there was no automated
+  signal that would have caught it. Now that the build step exists,
+  future gaps like it should surface directly as a CI failure instead.
 
 ## Conformance IDs assigned so far
 

@@ -12,10 +12,12 @@ Apple's toolchain remains the authority for iOS compilation, code signing,
 physical-device validation, TestFlight and App Store distribution. Cider does
 not replace any of those and does not try to.
 
-> **Status: pre-alpha.** Stage 0 of the roadmap is complete: a Swift application
-> launches through the Cider CLI and displays an interactive button in a Linux
-> window. That is the whole of it. Everything else on this page is either a
-> non-goal or future work.
+> **Status: pre-alpha.** Stages 0-2 of the roadmap are complete: a Swift
+> application launches through the Cider CLI into a sandboxed, CI-verified
+> runtime, and its UI can use text, buttons, stacks, images, scrolling, text
+> input, lists, navigation and modals. There is still no networking, no
+> persistent storage and no compatibility contract. Everything else on this
+> page is either a non-goal or future work.
 
 ---
 
@@ -55,13 +57,19 @@ Concretely:
 - **`cider run`** — builds if needed, resolves a device profile, opens a
   virtual-device window, runs the application, and shuts down cleanly.
 - **A declarative Swift API** — `CiderApp`, `CiderView`, `Text`, `Button`,
-  `VStack`, `@CiderState`.
-- **A normalized UI tree** with stable identity, a two-pass layout engine, and a
-  portable software rasterizer with antialiased rounded rectangles.
-- **A Linux backend** over X11 and FreeType, behind abstract host interfaces.
+  `VStack`, `Image`, `ScrollView`, `TextField`, `List`, `NavigationView`,
+  `Modal`, `@CiderState`.
+- **A normalized UI tree** with stable identity, a two-pass layout engine,
+  clipping, and a portable software rasterizer with antialiased rounded
+  rectangles.
+- **A Linux backend** over X11 and FreeType, behind abstract host
+  interfaces — pointer, scroll and keyboard input.
 - **A headless backend** used by the test suites, so conformance and visual tests
   need no display.
-- **103 tests** across unit, conformance, integration and visual-regression
+- **A sandboxed, per-app data root** and redacted logging, and CI that
+  builds and tests every push on the Ubuntu/Swift matrix
+  `docs/06-testing-strategy.md` specifies.
+- **179 tests** across unit, conformance, integration and visual-regression
   suites.
 
 ## Goals
@@ -235,6 +243,13 @@ published:
 | `UI-BUTTON-001` | A button draws a background, a label and a hit region. |
 | `INPUT-POINTER-001` | A pointer becomes a touch, and a touch hit-tests. |
 | `STATE-UPDATE-001` | A button action changes state, and the next frame shows it. |
+| `UI-IMAGE-001` | An image lowers to an `ImageNode` and draws at its intrinsic size. |
+| `UI-SCROLL-001` | A scroll view clips its content, and scrolling moves it, clamped. |
+| `UI-TEXTFIELD-001` | A text field gains focus on tap and edits its bound state. |
+| `UI-LIST-001` | A list's rows keep source order and scroll like a scroll view. |
+| `NAV-PUSH-001` | A navigation view lowers to a nav stack and pushes screens. |
+| `NAV-POP-001` | Popping a navigation stack returns to the screen underneath. |
+| `UI-MODAL-001` | A modal dims and overlays base content, and blocks taps to it. |
 
 Visual baselines are re-recorded deliberately:
 
@@ -246,12 +261,19 @@ A recording run fails on purpose. Read the diff before committing it.
 
 ## Current limitations
 
-This is Stage 0. The list is long and honest:
+This is Stage 2. The list is long and honest:
 
-- **UI**: `Text`, `Button` and `VStack` only. No images, scrolling, text input,
-  lists, navigation or modals.
-- **Layout**: no constraints, no text wrapping, no frame or padding modifiers.
-  The root centres one node in the safe area.
+- **UI**: `Text`, `Button`, `VStack`, `Image`, `ScrollView`, `TextField`,
+  `List`, `NavigationView` and `Modal`. No image decoding (an `Image` is
+  already-decoded pixels — see `ImageSource`'s doc comment — not a PNG/JPEG
+  loaded from a file), no list virtualization, no partial-height modal
+  sheets (a presented `Modal` is always full-screen), and no composed/IME
+  text input on the real X11 backend (`TextField` reads raw keysyms; see
+  `HANDOFF.md` for the exact scope).
+- **Layout**: no constraints, no text wrapping, no frame or padding
+  modifiers. The root either centres one node in the safe area (most node
+  kinds) or fills it (`NavigationView`, `Modal`) — see
+  `LayoutEngine.layoutCentered`'s doc comment.
 - **Text**: one line, left to right, with kerning. No bidirectional reordering
   and no complex-script shaping — Arabic, Devanagari and Thai render
   incorrectly.
@@ -278,8 +300,8 @@ Full detail in
 | --- | --- | --- |
 | 0 | Prove the architecture end to end | **done** |
 | 1 | Runtime skeleton: CLI, manifest, lifecycle, profiles, logging, sandbox, CI | **done** |
-| 2 | UI MVP: images, scrolling, text input, lists, navigation, modals | next |
-| 3 | Services: HTTP, preferences, storage, timers, clipboard | |
+| 2 | UI MVP: images, scrolling, text input, lists, navigation, modals | **done** |
+| 3 | Services: HTTP, preferences, storage, timers, clipboard | next |
 | 4 | Developer experience: compatibility scanner, inspector, hot loop | |
 | 5 | Alpha: packaging, versioned compatibility contract, 10+ reference apps | |
 | 6 | Windows backend | |
