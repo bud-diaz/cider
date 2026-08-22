@@ -9,20 +9,26 @@ session, whether or not the milestone finished.
 
 ## Status
 
-Every milestone in this plan (Part A, B1-B9) is implemented. **B9** is
-pushed but this session had not confirmed its CI result as of this
-writing — check it (and B8's, see below) before treating the plan as
-closed. If both are green, this plan is done: what's left is genuinely
-Stage 3+ work, not anything this plan scoped.
+**This plan is complete.** Every milestone (Part A, B1-B9) is implemented,
+pushed, and confirmed green on CI — Stage 1 is closed and Stage 2 (UI MVP)
+is done. Nothing is queued next within this plan's scope; what's left is
+Stage 3 (services: HTTP, preferences, storage, timers, clipboard), which
+this plan never covered. Anyone picking this repo back up should start
+from a fresh plan for Stage 3, using this file's Open issues section below
+as the punch list of Stage 2 loose ends worth closing first (visual
+baselines above all — every Stage 2 primitive has conformance coverage but
+zero pixel-level regression coverage, and B9's reference app has never
+actually been run, only built).
 
 Note: `swift` is not installed in the container this work was done in, so
-none of this has been build/test-verified locally beyond what CI reports.
-CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3
-(8676a50), B4 (52590ca), B5 (a91f40f) and B7 (0ec9d66). B6's first push
-(db2a5df) **failed CI** — the first real test failure this plan has hit;
-the fix (31c3f79) came back green (run 32581743172). B8's and B9's pushes
-have not been checked yet by this session — check both before treating
-this plan as fully closed.
+none of this has been build/test-verified locally beyond what CI reports —
+every claim of "done" here rests on CI, not on running it. CI came back
+green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3 (8676a50), B4
+(52590ca), B5 (a91f40f), B7 (0ec9d66), B8 (bf59f3c) and B9 (76f9e56, run
+32582812483 — including the new "build every examples/* package" step,
+confirming `examples/ui-showcase` actually compiles). B6's first push
+(db2a5df) **failed CI** — the only real test failure this plan hit; the
+fix (31c3f79) came back green.
 
 **Caveat carried from B3, still true, now more relevant**: CI's `swift
 build`/`swift test` compile the X11 C shim but never execute it — every
