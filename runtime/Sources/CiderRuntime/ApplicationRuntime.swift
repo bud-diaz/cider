@@ -57,10 +57,9 @@ public final class ApplicationRuntime: InvalidationTarget {
     /// The button currently held down, if any.
     private var pressedNode: NodeID?
 
-    /// The node with keyboard focus, if any. Nothing can set this yet -- no
-    /// node kind accepts focus until Stage 2's text field lands -- but
-    /// keyboard events need somewhere to route to once one exists, the same
-    /// reason `pressedNode` exists for touch.
+    /// The node with keyboard focus, if any. Set by tapping a text field;
+    /// cleared by tapping anything else, or by that node vanishing in a
+    /// rebuild -- the same reasoning `pressedNode` already has for touch.
     private var focusedNode: NodeID?
 
     /// Current scroll position of every scroll view that has one, keyed by
@@ -214,20 +213,59 @@ public final class ApplicationRuntime: InvalidationTarget {
             handleScroll(at: location, deltaX: deltaX, deltaY: deltaY)
 
         case .keyDown(let keyCode):
-            if let focusedNode {
-                log.trace("key down \(keyCode) (focus: \(focusedNode))")
-            }
+            handleKeyDown(keyCode)
 
-        case .keyUp(let keyCode):
-            if let focusedNode {
-                log.trace("key up \(keyCode) (focus: \(focusedNode))")
-            }
+        case .keyUp:
+            // Typing only reacts to key-down; a held key's repeat already
+            // arrives as repeated keyDown events from the host, and nothing
+            // in the MVP (no modifier tracking, no key-repeat timing of its
+            // own) needs to know when a key comes back up.
+            break
 
         case .textInput(let text):
+            // No backend produces this yet -- see HostEvent.textInput's doc
+            // comment. When one does, it should carry composed text past
+            // handleKeyDown's ASCII-only keysym mapping below, not alongside
+            // it: firing both for the same keystroke would double-insert.
             if let focusedNode {
                 log.trace("text input \(text.debugDescription) (focus: \(focusedNode))")
             }
         }
+    }
+
+    /// X11 keysym for Backspace. Named here rather than imported from a
+    /// header: this file has no C dependency, and one raw constant does not
+    /// justify adding one. See docs/07-legal-distribution-boundaries.md if
+    /// this list ever grows enough to need a real source.
+    private static let backspaceKeyCode = 0xFF08
+
+    /// Turns a raw key into a text edit, for whatever text field has focus.
+    ///
+    /// Scoped to what X11 keysyms make possible without an input method: the
+    /// keysyms for printable ASCII are, by X11's own design, identical to
+    /// their Unicode code points (true for the whole Latin-1 range, 0x20 to
+    /// 0xFF), so basic typing works from `keyDown` alone. Composed text --
+    /// dead keys, IME, anything outside Latin-1 -- needs `Xutf8LookupString`
+    /// in the X11 shim, which does not exist yet (see HostEvent.textInput's
+    /// doc comment); this only ever produces what a keysym in that range
+    /// spells out directly. Editing is append/remove-from-the-end only: no
+    /// cursor movement, no selection.
+    private func handleKeyDown(_ keyCode: Int) {
+        guard let focusedNode, let scene else { return }
+        guard let handler = scene.textInputHandlers[focusedNode] else { return }
+        guard case .textField(let field) = scene.root.find(focusedNode) else { return }
+
+        let newText: String
+        if keyCode == Self.backspaceKeyCode {
+            guard !field.text.isEmpty else { return }
+            newText = String(field.text.dropLast())
+        } else if let scalar = Unicode.Scalar(keyCode), (0x20...0x7E).contains(keyCode) {
+            newText = field.text + String(Character(scalar))
+        } else {
+            return
+        }
+
+        handler(newText)
     }
 
     private var translator: PointerTranslator? {
@@ -256,6 +294,18 @@ public final class ApplicationRuntime: InvalidationTarget {
             }
             if let hit {
                 log.trace("touch began on \(hit)")
+            }
+
+            // Focus follows the tap, the same as most direct-manipulation UI:
+            // landing on a text field gives it focus, landing on anything
+            // else -- another control, empty space -- takes focus away.
+            // `scene` (not `pressedNode`/`hitTest`) is what says whether a
+            // hit id is actually a text field, since nothing about a
+            // `NodeID` says what kind of node it names.
+            let newFocus = hit.flatMap { scene?.textInputHandlers[$0] != nil ? $0 : nil }
+            if newFocus != focusedNode {
+                focusedNode = newFocus
+                needsRender = true
             }
 
         case .moved:
@@ -398,6 +448,7 @@ public final class ApplicationRuntime: InvalidationTarget {
             layout: layout,
             backgroundColor: backgroundColor,
             pressedNode: pressedNode,
+            focusedNode: focusedNode,
             scrollOffsets: scrollOffsets,
             context: context
         )
@@ -429,8 +480,8 @@ public final class ApplicationRuntime: InvalidationTarget {
     /// The node currently held down, if any.
     public var currentPressedNode: NodeID? { pressedNode }
 
-    /// The node with keyboard focus, if any. Always `nil` until a focusable
-    /// node kind exists to set it.
+    /// The node with keyboard focus, if any -- the text field last tapped,
+    /// unless focus has since moved or been cleared.
     public var currentFocusedNode: NodeID? { focusedNode }
 
     /// The current scroll position of the scroll view identified by `id`,

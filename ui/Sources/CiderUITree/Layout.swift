@@ -77,6 +77,16 @@ public enum LayoutEngine {
             // The viewport is explicit, not derived from content: a scroll
             // view's whole point is that its content can be larger than it.
             return scroll.viewportSize
+
+        case .textField(let field):
+            // Width is explicit, the same reasoning as a scroll view's
+            // viewport: sizing to the current text would make the field grow
+            // and shrink as someone types, and there is no "fill my parent"
+            // layout yet to give it a width another way. Height only needs
+            // the font's line metrics, not a shaped run -- it does not
+            // depend on the text's content.
+            let lineHeight = context.textEngine.metrics(for: field.font).lineHeight
+            return Size(width: field.width, height: lineHeight + field.padding.vertical)
         }
     }
 
@@ -109,7 +119,7 @@ public enum LayoutEngine {
         let frame = Rect(origin: origin, size: size)
 
         switch node {
-        case .text, .button, .image:
+        case .text, .button, .image, .textField:
             return LayoutBox(id: node.id, frame: frame)
 
         case .vstack(let stack):

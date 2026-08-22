@@ -149,19 +149,58 @@ public struct ScrollViewNode: Equatable, Sendable {
     }
 }
 
+/// A single line of editable text, bound to application state.
+///
+/// Carries its *current* text as plain data, the same way `TextNode` does --
+/// not a closure, not a binding. Editing flows through the same side-channel
+/// as a button's action: `LoweringContext.register(textInputHandler:for:)`
+/// gives the runtime a `(String) -> Void` it can call without knowing what
+/// `@CiderState` property is on the other end of it.
+public struct TextFieldNode: Equatable, Sendable {
+    public var id: NodeID
+    public var text: String
+    public var font: FontRequest
+    public var textColor: Color
+    public var backgroundColor: Color
+    public var cornerRadius: Double
+    public var padding: EdgeInsets
+    public var width: Double
+
+    public init(
+        id: NodeID,
+        text: String,
+        font: FontRequest,
+        textColor: Color,
+        backgroundColor: Color,
+        cornerRadius: Double,
+        padding: EdgeInsets,
+        width: Double
+    ) {
+        self.id = id
+        self.text = text
+        self.font = font
+        self.textColor = textColor
+        self.backgroundColor = backgroundColor
+        self.cornerRadius = cornerRadius
+        self.padding = padding
+        self.width = width
+    }
+}
+
 /// docs/05-implementation-roadmap.md Stage 2 adds scrolling, lists,
 /// navigation and modals on top of the Stage 0/1 set (text, button, stack);
-/// `image` and `scrollView` are the first two of those to land. Per
-/// docs/adr/0003-ui-tree-model.md, adding a node kind means touching this
-/// type, `LayoutEngine.measure`, `LayoutEngine.place`, `RenderTreeBuilder`
-/// and `Inspector` -- five places, deliberately, each an exhaustive switch
-/// with no `default:`.
+/// `image`, `scrollView` and `textField` are the first three of those to
+/// land. Per docs/adr/0003-ui-tree-model.md, adding a node kind means
+/// touching this type, `LayoutEngine.measure`, `LayoutEngine.place`,
+/// `RenderTreeBuilder` and `Inspector` -- five places, deliberately, each an
+/// exhaustive switch with no `default:`.
 public indirect enum UINode: Equatable, Sendable {
     case text(TextNode)
     case button(ButtonNode)
     case vstack(VStackNode)
     case image(ImageNode)
     case scrollView(ScrollViewNode)
+    case textField(TextFieldNode)
 
     public var id: NodeID {
         switch self {
@@ -170,6 +209,7 @@ public indirect enum UINode: Equatable, Sendable {
         case .vstack(let node): return node.id
         case .image(let node): return node.id
         case .scrollView(let node): return node.id
+        case .textField(let node): return node.id
         }
     }
 
@@ -177,7 +217,7 @@ public indirect enum UINode: Equatable, Sendable {
         switch self {
         case .vstack(let node): return node.children
         case .scrollView(let node): return [node.content]
-        case .text, .button, .image: return []
+        case .text, .button, .image, .textField: return []
         }
     }
 
@@ -189,6 +229,18 @@ public indirect enum UINode: Equatable, Sendable {
         case .vstack: return "VStackNode"
         case .image: return "ImageNode"
         case .scrollView: return "ScrollViewNode"
+        case .textField: return "TextFieldNode"
         }
+    }
+
+    /// Depth-first search for a node by identity. The runtime uses this to
+    /// read a text field's *current* text when a key arrives -- the tree is
+    /// the only place that value lives; nothing keeps a separate copy.
+    public func find(_ id: NodeID) -> UINode? {
+        if self.id == id { return self }
+        for child in children {
+            if let found = child.find(id) { return found }
+        }
+        return nil
     }
 }

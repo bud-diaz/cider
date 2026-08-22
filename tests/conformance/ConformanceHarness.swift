@@ -127,6 +127,15 @@ struct ImageOnlyApp: CiderApp {
     }
 }
 
+/// A single text field, for the text-field conformance test.
+struct TextFieldTestApp: CiderApp {
+    @CiderState var text = ""
+
+    var body: some CiderView {
+        TextField($text, width: 100)
+    }
+}
+
 /// A short viewport over content taller than it, with a button positioned so
 /// it starts out entirely scrolled out of view -- for the scroll conformance
 /// test, including whether hit-testing respects the clip.

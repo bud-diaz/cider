@@ -100,6 +100,7 @@ public enum RenderTreeBuilder {
         layout: LayoutBox,
         backgroundColor: Color,
         pressedNode: NodeID? = nil,
+        focusedNode: NodeID? = nil,
         scrollOffsets: [NodeID: Point] = [:],
         context: LayoutContext
     ) -> RenderTree {
@@ -108,6 +109,7 @@ public enum RenderTreeBuilder {
             node: node,
             layout: layout,
             pressedNode: pressedNode,
+            focusedNode: focusedNode,
             scrollOffsets: scrollOffsets,
             offset: .zero,
             clip: nil,
@@ -135,6 +137,7 @@ public enum RenderTreeBuilder {
         node: UINode,
         layout: LayoutBox,
         pressedNode: NodeID?,
+        focusedNode: NodeID?,
         scrollOffsets: [NodeID: Point],
         offset: Point,
         clip: Rect?,
@@ -203,6 +206,7 @@ public enum RenderTreeBuilder {
                     node: child,
                     layout: childLayout,
                     pressedNode: pressedNode,
+                    focusedNode: focusedNode,
                     scrollOffsets: scrollOffsets,
                     offset: offset,
                     clip: clip,
@@ -240,6 +244,7 @@ public enum RenderTreeBuilder {
                     node: scroll.content,
                     layout: contentLayout,
                     pressedNode: pressedNode,
+                    focusedNode: focusedNode,
                     scrollOffsets: scrollOffsets,
                     offset: contentOffset,
                     clip: effectiveViewport,
@@ -248,6 +253,58 @@ public enum RenderTreeBuilder {
                 )
             }
             tree.commands.append(.popClip)
+
+        case .textField(let field):
+            let frame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
+            tree.commands.append(
+                .fillRect(rect: frame, color: field.backgroundColor, cornerRadius: field.cornerRadius)
+            )
+
+            let metrics = context.textEngine.metrics(for: field.font)
+            let textX = frame.minX + field.padding.left
+            let textY = frame.minY + field.padding.top + metrics.ascent
+
+            var textWidth = 0.0
+            if !field.text.isEmpty {
+                let run = context.textEngine.shape(field.text, font: field.font)
+                textWidth = run.width
+                tree.commands.append(
+                    .text(
+                        content: field.text,
+                        baselineOrigin: Point(x: textX, y: textY),
+                        font: field.font,
+                        color: field.textColor
+                    )
+                )
+            }
+
+            // The caret is just a 1pt-wide fill, the same primitive
+            // everything else here already draws with -- no new rasterizer
+            // capability needed for "the field with focus looks editable."
+            if focusedNode == field.id {
+                tree.commands.append(
+                    .fillRect(
+                        rect: Rect(
+                            x: textX + textWidth,
+                            y: frame.minY + field.padding.top,
+                            width: 1,
+                            height: metrics.lineHeight
+                        ),
+                        color: field.textColor,
+                        cornerRadius: 0
+                    )
+                )
+            }
+
+            let hitFrame: Rect?
+            if let clip {
+                hitFrame = frame.intersection(clip)
+            } else {
+                hitFrame = frame
+            }
+            if let hitFrame {
+                tree.hitRegions.append(HitRegion(id: field.id, frame: hitFrame, isEnabled: true))
+            }
         }
     }
 }

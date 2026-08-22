@@ -10,26 +10,29 @@ session, whether or not the milestone finished.
 ## Status
 
 Part A (Stage 1 close-out), **B1** (Image), **B2** (layout/rendering
-foundations), **B3** (host input plumbing) and **B4** (ScrollView) are
-done. Next up: **B5** (TextField), which depends on B3's keyboard event
-plumbing (and inherits its `textInput` caveat — see B3's Deviations entry
-below, still unresolved).
+foundations), **B3** (host input plumbing), **B4** (ScrollView) and
+**B5** (TextField) are done. Next up: **B6** (List), which reuses B4's
+scroll machinery.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
-CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26) and B3
-(8676a50 + the B4 location-field fix). B4 has been pushed for the same
-verification; check its result before starting B5.
+CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3
+(8676a50) and B4 (52590ca). B5 has been pushed for the same verification;
+check its result before starting B6.
 
-**Caveat carried from B3, still true**: CI's `swift build`/`swift test`
-compile the X11 C shim but never execute it — every test uses the
-headless `TestingHostBackend`. A green CI run is not evidence that
-scrolling or key events actually work when `cider run` opens a real X11
-window. B4's scroll-wheel-to-offset behavior specifically has only been
-verified against the testing backend's synthetic `.scroll` events, never
-a real mouse wheel. Someone with real display access should run
-`examples/hello-cider` and confirm the wheel actually scrolls something
-before this is trusted end-to-end.
+**Caveat carried from B3, still true, now more relevant**: CI's `swift
+build`/`swift test` compile the X11 C shim but never execute it — every
+test uses the headless `TestingHostBackend`. A green CI run is not
+evidence that scrolling or key events actually work when `cider run`
+opens a real X11 window. **B5 specifically depends on this being true for
+typing to work at all**: it reads raw keysyms straight from `XLookupKeysym`
+(no Xutf8LookupString), on the premise that X11's printable-ASCII keysyms
+equal their Unicode code points. That premise is standard, documented
+X11 behavior, not a guess particular to this codebase — but it has only
+been exercised through synthetic `TestingHostBackend` events with
+hand-picked keyCode values, never a real keyboard. Someone with real
+display access should run `examples/hello-cider`, focus a text field, and
+confirm actual typing works before this is trusted end-to-end.
 
 ## Done
 
@@ -204,6 +207,61 @@ before this is trusted end-to-end.
     cases in `tests/unit/LayoutTests.swift`; the B3 location fix
     propagated into `PointerTranslationTests.swift`.
 
+- **B5** — TextField, all five ADR-0003 touchpoints plus a new
+  side-channel and a real editing story:
+  - `TextFieldNode` (`ui/Sources/CiderUITree/UINode.swift`): explicit
+    `width` (same reasoning as `ScrollViewNode`'s `viewportSize` — no
+    "fill parent" layout exists yet). Also added `UINode.find(_:)`, a
+    general depth-first lookup by identity — the runtime needs it to
+    read a field's *current* text (the tree is the only place that
+    value lives, matching the "pure data" model: nothing keeps a
+    parallel copy).
+  - **New side-channel, parallel to `actions`**: `ApplicationScene`
+    (`runtime/Sources/CiderRuntime/Application.swift`) and
+    `LoweringContext` (`compatibility/Sources/CiderUI/Lowering.swift`)
+    both gained `textInputHandlers: [NodeID: (String) -> Void]` /
+    `register(textInputHandler:for:)`, the same shape as
+    `actions`/`register(action:for:)`. `CiderState<Value>`'s existing
+    `projectedValue` (`$text`) already returns the class instance
+    itself, so `TextField($text, width:)` closes over the *same*
+    storage the app's `@CiderState` property does — no new binding type
+    needed, `CiderState.swift`'s own comment already anticipated this
+    ("nothing in the MVP node set takes a two-way binding yet").
+  - **Editing is keyDown-only, deliberately, and it actually works on
+    real X11 unlike B3's `textInput`.** X11 keysyms for the printable
+    ASCII/Latin-1 range are *identical to their Unicode code points* by
+    X11's own design — a documented property of the encoding, not
+    something specific to this codebase — so `ApplicationRuntime.handleKeyDown`
+    maps `keyCode` directly to a `Character` for 0x20...0x7E, handles
+    backspace (0xFF08) specially, and ignores everything else. This
+    needed no further C shim work: B3's `XLookupKeysym`-based `keyDown`
+    is already sufficient. `.textInput` stays unconsumed (see B3's
+    Deviations entry) — the doc comment on `handleKeyDown` and on the
+    `.textInput` case both flag that a future `Xutf8LookupString`
+    implementation must *replace* this path for composed text, not run
+    alongside it, or a keystroke could double-insert.
+  - Focus: `ApplicationRuntime.handle(_ touch:)`'s `.began` case now
+    also sets/clears `focusedNode` based on whether the tapped id is a
+    key in `scene.textInputHandlers` — tapping a field focuses it,
+    tapping anything else (or empty space) clears focus. Reuses the
+    existing `hitRegions`/`hitTest` a button already publishes through,
+    rather than adding a third parallel region list the way scroll
+    needed its own (`scrollRegions`) — a tap only ever means one of
+    "press this" or "focus this", so one hit-test answering "what did
+    the tap land on" is enough; the runtime decides which by which
+    table the id is in.
+  - `RenderTreeBuilder.append` gained a `focusedNode` parameter
+    (threaded like `pressedNode`); `.textField` draws a background
+    fill, the text (via the same `.text` command everything else
+    uses), and — only when focused — a 1pt-wide caret fill after the
+    last character. Hit region is clip-aware, same fix as B4's buttons.
+  - Tests: `UI-TEXTFIELD-001` (7 cases: lowering, focus follows tap,
+    typing, backspace, backspace-on-empty is a no-op, typing while
+    unfocused is a no-op, an unmapped key is a no-op) in
+    `tests/conformance/ConformanceTests.swift` + `TextFieldTestApp` in
+    `ConformanceHarness.swift`; layout measure/place cases and a
+    `UINode.find(_:)` case in `tests/unit/LayoutTests.swift`.
+
 ## Deviations
 
 - The plan suggested putting sandbox path resolution "alongside
@@ -287,9 +345,9 @@ authoritative list):
 Implemented by this plan:
 - `UI-IMAGE-001` (B1)
 - `UI-SCROLL-001` (B4)
+- `UI-TEXTFIELD-001` (B5)
 
 Reserved, not yet implemented:
-- `UI-TEXTFIELD-001` (B5)
 - `UI-LIST-001` (B6)
 - `NAV-PUSH-001`, `NAV-POP-001` (B7)
 - `UI-MODAL-001` (B8)

@@ -16,6 +16,7 @@
 //    STATE-UPDATE-001  a button action changes state and the next frame shows it
 //    UI-IMAGE-001      Image lowers to an ImageNode and draws at its intrinsic size
 //    UI-SCROLL-001     ScrollView clips its content and scrolling moves it, clamped
+//    UI-TEXTFIELD-001  TextField gains focus on tap and edits its bound state
 
 import XCTest
 
@@ -631,5 +632,114 @@ final class ConformanceTests: XCTestCase {
         ])
 
         XCTAssertEqual(harness.runtime.currentScrollOffset(for: scrollViewID).y, 0, accuracy: 1e-9)
+    }
+
+    // MARK: - UI-TEXTFIELD-001
+
+    /// UI-TEXTFIELD-001: a `TextField` becomes one TextFieldNode carrying the
+    /// bound state's current value, with a registered text handler and no
+    /// action -- it is editable, not tappable-as-a-button.
+    func testUI_TEXTFIELD_001_textFieldLowersToATextFieldNode() throws {
+        let scene = Lowering.scene(from: TextFieldTestApp().body)
+        guard case .textField(let node) = scene.root else {
+            return XCTFail("expected a TextFieldNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(node.text, "")
+        XCTAssertEqual(node.width, 100)
+        XCTAssertEqual(scene.textInputHandlers.count, 1)
+        XCTAssertTrue(scene.actions.isEmpty, "a text field is not a button")
+    }
+
+    /// UI-TEXTFIELD-001: tapping a text field gives it focus; tapping
+    /// somewhere else takes focus away.
+    func testUI_TEXTFIELD_001_tappingSetsFocusAndTappingElsewhereClearsIt() throws {
+        let harness = try ConformanceHarness(TextFieldTestApp())
+        try harness.launch()
+
+        XCTAssertNil(harness.runtime.currentFocusedNode)
+
+        let field = try XCTUnwrap(harness.runtime.currentRenderTree?.hitRegions.first)
+        try harness.tap(at: Point(x: field.frame.midX, y: field.frame.midY))
+        XCTAssertEqual(harness.runtime.currentFocusedNode, field.id)
+
+        try harness.tap(at: Point(x: field.frame.maxX + 50, y: field.frame.maxY + 50))
+        XCTAssertNil(harness.runtime.currentFocusedNode)
+    }
+
+    /// UI-TEXTFIELD-001: typing while focused appends to the bound state,
+    /// and the next frame shows it -- the same state -> invalidate ->
+    /// rebuild loop a button's action already goes through.
+    func testUI_TEXTFIELD_001_typingWhileFocusedAppendsToTheBoundState() throws {
+        let harness = try ConformanceHarness(TextFieldTestApp())
+        try harness.launch()
+
+        let field = try XCTUnwrap(harness.runtime.currentRenderTree?.hitRegions.first)
+        try harness.tap(at: Point(x: field.frame.midX, y: field.frame.midY))
+
+        for character in "hi" {
+            try harness.deliver([.keyDown(keyCode: Int(character.unicodeScalars.first!.value))])
+        }
+
+        XCTAssertTrue(harness.drawnStrings().contains("hi"))
+    }
+
+    /// UI-TEXTFIELD-001: backspace removes one character from the end.
+    func testUI_TEXTFIELD_001_backspaceRemovesTheLastCharacter() throws {
+        let harness = try ConformanceHarness(TextFieldTestApp())
+        try harness.launch()
+
+        let field = try XCTUnwrap(harness.runtime.currentRenderTree?.hitRegions.first)
+        try harness.tap(at: Point(x: field.frame.midX, y: field.frame.midY))
+
+        for character in "cat" {
+            try harness.deliver([.keyDown(keyCode: Int(character.unicodeScalars.first!.value))])
+        }
+        XCTAssertTrue(harness.drawnStrings().contains("cat"))
+
+        try harness.deliver([.keyDown(keyCode: 0xFF08)])
+        XCTAssertTrue(harness.drawnStrings().contains("ca"))
+        XCTAssertFalse(harness.drawnStrings().contains("cat"))
+    }
+
+    /// UI-TEXTFIELD-001: backspace on an empty field has nothing to remove,
+    /// and must not redraw for no reason.
+    func testUI_TEXTFIELD_001_backspaceOnAnEmptyFieldDoesNothing() throws {
+        let harness = try ConformanceHarness(TextFieldTestApp())
+        try harness.launch()
+
+        let field = try XCTUnwrap(harness.runtime.currentRenderTree?.hitRegions.first)
+        try harness.tap(at: Point(x: field.frame.midX, y: field.frame.midY))
+
+        let framesBefore = harness.backend.presentedFrames.count
+        try harness.deliver([.keyDown(keyCode: 0xFF08)])
+
+        XCTAssertEqual(harness.backend.presentedFrames.count, framesBefore)
+    }
+
+    /// UI-TEXTFIELD-001: typing while nothing is focused reaches no field.
+    func testUI_TEXTFIELD_001_typingWhileUnfocusedDoesNothing() throws {
+        let harness = try ConformanceHarness(TextFieldTestApp())
+        try harness.launch()
+
+        XCTAssertNil(harness.runtime.currentFocusedNode)
+        try harness.deliver([.keyDown(keyCode: Int(UnicodeScalar("x").value))])
+
+        XCTAssertFalse(harness.drawnStrings().contains("x"))
+    }
+
+    /// UI-TEXTFIELD-001: a key outside backspace and the printable ASCII
+    /// range (an arrow key, here) is not mapped to an edit and must not
+    /// redraw for no reason.
+    func testUI_TEXTFIELD_001_unmappedKeysAreIgnored() throws {
+        let harness = try ConformanceHarness(TextFieldTestApp())
+        try harness.launch()
+
+        let field = try XCTUnwrap(harness.runtime.currentRenderTree?.hitRegions.first)
+        try harness.tap(at: Point(x: field.frame.midX, y: field.frame.midY))
+
+        let framesBefore = harness.backend.presentedFrames.count
+        try harness.deliver([.keyDown(keyCode: 0xFF52)])
+
+        XCTAssertEqual(harness.backend.presentedFrames.count, framesBefore)
     }
 }

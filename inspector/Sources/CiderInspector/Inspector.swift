@@ -38,6 +38,8 @@ public enum Inspector {
             line += "  \(image.source.width)x\(image.source.height)"
         case .scrollView(let scroll):
             line += "  viewport=\(format(scroll.viewportSize.width))x\(format(scroll.viewportSize.height))"
+        case .textField(let field):
+            line += "  \(quoted(field.text))"
         }
 
         var lines = [line]

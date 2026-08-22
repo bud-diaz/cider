@@ -41,6 +41,21 @@ final class LayoutTests: XCTestCase {
         )
     }
 
+    private func textField(_ id: String, _ text: String, width: Double, size: Double = 10) -> UINode {
+        .textField(
+            TextFieldNode(
+                id: NodeID(path: id),
+                text: text,
+                font: FontRequest(size: size),
+                textColor: .black,
+                backgroundColor: .white,
+                cornerRadius: 4,
+                padding: EdgeInsets(horizontal: 8, vertical: 4),
+                width: width
+            )
+        )
+    }
+
     private func scrollView(_ id: String, width: Double, height: Double, content: UINode) -> UINode {
         .scrollView(
             ScrollViewNode(
@@ -112,6 +127,18 @@ final class LayoutTests: XCTestCase {
     func testImageMeasuresToItsSourcePixelDimensions() {
         let size = LayoutEngine.measure(image("i", width: 40, height: 30), context: context)
         XCTAssertEqual(size, Size(width: 40, height: 30))
+    }
+
+    func testTextFieldMeasuresToItsExplicitWidthAndTheFontsLineHeight() {
+        // Width doesn't depend on the text -- see TextFieldNode's doc
+        // comment -- and height doesn't need a shaped run, only the font's
+        // metrics, since it doesn't depend on the text either.
+        let empty = LayoutEngine.measure(textField("f", "", width: 80, size: 10), context: context)
+        let long = LayoutEngine.measure(textField("f", "a very long string indeed", width: 80, size: 10), context: context)
+
+        XCTAssertEqual(empty, long, "content must not affect size")
+        XCTAssertEqual(empty.width, 80, accuracy: 1e-9)
+        XCTAssertEqual(empty.height, 12 + 4 + 4, accuracy: 1e-9, "1.2 x 10pt line height plus vertical padding")
     }
 
     func testScrollViewMeasuresToItsExplicitViewportSizeRegardlessOfContent() {
@@ -196,6 +223,14 @@ final class LayoutTests: XCTestCase {
         XCTAssertTrue(box.children.isEmpty)
     }
 
+    func testTextFieldPlacesAtItsMeasuredFrame() {
+        let node = textField("f", "hello", width: 80, size: 10)
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 80, height: 20), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 80, height: 20))
+        XCTAssertTrue(box.children.isEmpty)
+    }
+
     func testScrollViewPlacesItsContentAtTheViewportsOriginUnscrolled() {
         // Layout describes the *unscrolled* reference frame -- content starts
         // flush with the viewport's top-left. Applying an actual scroll
@@ -251,6 +286,40 @@ final class LayoutTests: XCTestCase {
 
         XCTAssertNotNil(box.box(for: NodeID(path: "root/1")))
         XCTAssertNil(box.box(for: NodeID(path: "root/9")))
+    }
+}
+
+final class UINodeFindTests: XCTestCase {
+
+    func testFindsANestedNodeByIdentity() {
+        let node = UINode.vstack(
+            VStackNode(
+                id: .root,
+                spacing: 0,
+                alignment: .center,
+                children: [
+                    .text(TextNode(id: NodeID(path: "root/0"), text: "a", font: FontRequest(size: 10), color: .black)),
+                    .button(
+                        ButtonNode(
+                            id: NodeID(path: "root/1"),
+                            title: "ok",
+                            font: FontRequest(size: 10),
+                            titleColor: .white,
+                            backgroundColor: .black,
+                            pressedBackgroundColor: .black,
+                            cornerRadius: 0,
+                            padding: .zero
+                        )
+                    ),
+                ]
+            )
+        )
+
+        guard case .button(let found) = node.find(NodeID(path: "root/1")) else {
+            return XCTFail("expected to find the button")
+        }
+        XCTAssertEqual(found.title, "ok")
+        XCTAssertNil(node.find(NodeID(path: "root/9")))
     }
 }
 

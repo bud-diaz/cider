@@ -19,6 +19,9 @@ public final class LoweringContext {
     /// Handlers for interactive nodes, keyed by the node's identity.
     public private(set) var actions: [NodeID: ActionHandler] = [:]
 
+    /// Handlers for editable nodes, keyed by the node's identity.
+    public private(set) var textInputHandlers: [NodeID: TextInputHandler] = [:]
+
     /// The container chain from the root down to where nodes are being emitted.
     private var parents: [NodeID] = [.root]
 
@@ -52,6 +55,10 @@ public final class LoweringContext {
 
     public func register(action: @escaping ActionHandler, for id: NodeID) {
         actions[id] = action
+    }
+
+    public func register(textInputHandler: @escaping TextInputHandler, for id: NodeID) {
+        textInputHandlers[id] = textInputHandler
     }
 
     /// Nodes emitted at the top level.
@@ -94,6 +101,6 @@ public enum Lowering {
             )
         }
 
-        return ApplicationScene(root: root, actions: context.actions)
+        return ApplicationScene(root: root, actions: context.actions, textInputHandlers: context.textInputHandlers)
     }
 }

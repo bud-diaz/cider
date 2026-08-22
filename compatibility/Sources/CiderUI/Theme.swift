@@ -24,5 +24,9 @@ public enum Theme {
     public static let buttonCornerRadius = 12.0
     public static let buttonPadding = EdgeInsets(horizontal: 24, vertical: 12)
 
+    public static let textFieldBackgroundColor = Color(hex: 0xFFFFFF)
+    public static let textFieldCornerRadius = 8.0
+    public static let textFieldPadding = EdgeInsets(horizontal: 12, vertical: 8)
+
     public static let stackSpacing = 16.0
 }
