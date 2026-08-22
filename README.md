@@ -69,7 +69,7 @@ Concretely:
 - **A sandboxed, per-app data root** and redacted logging, and CI that
   builds and tests every push on the Ubuntu/Swift matrix
   `docs/06-testing-strategy.md` specifies.
-- **179 tests** across unit, conformance, integration and visual-regression
+- **185 tests** across unit, conformance, integration and visual-regression
   suites.
 
 ## Goals

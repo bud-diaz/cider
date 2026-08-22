@@ -15,10 +15,9 @@ is done. Nothing is queued next within this plan's scope; what's left is
 Stage 3 (services: HTTP, preferences, storage, timers, clipboard), which
 this plan never covered. Anyone picking this repo back up should start
 from a fresh plan for Stage 3, using this file's Open issues section below
-as the punch list of Stage 2 loose ends worth closing first (visual
-baselines above all — every Stage 2 primitive has conformance coverage but
-zero pixel-level regression coverage, and B9's reference app has never
-actually been run, only built).
+as the punch list of Stage 2 loose ends worth closing first. The visual
+baseline gap has now been closed; the remaining Stage 2 loose end is that
+B9's reference app has been built but not interactively run/tapped through.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports —
@@ -43,6 +42,24 @@ been exercised through synthetic `TestingHostBackend` events with
 hand-picked keyCode values, never a real keyboard. Someone with real
 display access should run `examples/hello-cider`, focus a text field, and
 confirm actual typing works before this is trusted end-to-end.
+
+**Latest continuation (visual baselines):** Stage 2 primitive visual baselines
+have now been added and verified in `tests/visual/VisualRegressionTests.swift`:
+`image-screen`, `scroll-view-screen`, `text-field-focused-screen`,
+`list-screen`, `navigation-screen`, and `modal-presented-screen`. Baselines were
+recorded in the Swift 6.0 Noble Docker environment and visually spot-checked via
+a contact sheet (no obvious blank/garbled renders). Verification run:
+`swift test --filter CiderVisualTests` passed 12/12. CI-equivalent root
+`swift build`/`swift test` passed for debug and release in the same container
+(185 tests in each configuration). Example app builds also passed for
+`examples/hello-cider` and `examples/ui-showcase` in debug and release when the
+repo was mounted at `/home/bud/cider` (matching the normal checkout basename;
+mounting at `/workspace` makes SwiftPM identify the path dependency as
+`workspace`, which breaks examples that name package `Cider`).
+
+**Remaining caveat:** B9's reference app (`examples/ui-showcase`) still has not
+been interactively run under `cider run` with a real/Xvfb display and tapped
+through. The example is build-verified only.
 
 ## Done
 
@@ -101,9 +118,9 @@ confirm actual typing works before this is trusted end-to-end.
   - Tests: `UI-IMAGE-001` in `tests/conformance/ConformanceTests.swift`
     (+ `ImageOnlyApp` in `ConformanceHarness.swift`), unit tests in
     `tests/unit/ImageSourceTests.swift` and new cases in
-    `tests/unit/LayoutTests.swift`. **No visual-regression baseline yet**
-    — see Open issues; a `VisualRegressionTests.swift` case was written
-    and then deliberately reverted rather than committed, see Deviations.
+    `tests/unit/LayoutTests.swift`. Visual coverage was added later via
+    `VisualRegressionTests.testImageScreen` and the `image-screen.ppm`
+    baseline; see the Latest continuation note above.
 
 - **B2** — layout & rendering foundations, both items from the plan:
   - `LayoutEngine.measure` gained `proposedSize: Size? = nil`
@@ -482,14 +499,13 @@ confirm actual typing works before this is trusted end-to-end.
     the `@_exported import` gap above automatically, if it had existed
     before this session hit the gap by hand.
   - Visual-regression baselines for the new node kinds were **not**
-    recorded, the same reason B1's Image baseline wasn't: no Swift
-    toolchain in this session to run `CIDER_UPDATE_BASELINES=1 swift
-    test`. Every new primitive does have conformance coverage
+    recorded during B9, the same reason B1's Image baseline wasn't: no Swift
+    toolchain in that session to run `CIDER_UPDATE_BASELINES=1 swift
+    test`. Every new primitive did have conformance coverage
     (`UI-IMAGE-001`/`UI-SCROLL-001`/`UI-TEXTFIELD-001`/`UI-LIST-001`/
-    `NAV-PUSH-001`/`NAV-POP-001`/`UI-MODAL-001`), which is real,
-    CI-enforced test coverage — just not the pixel-level visual
-    regression the plan's Verification section also asked for. Carried
-    into Open issues below alongside B1's.
+    `NAV-PUSH-001`/`NAV-POP-001`/`UI-MODAL-001`), which was real,
+    CI-enforced test coverage; the pixel-level visual-regression gap was
+    closed by the later visual-baselines continuation above.
   - `README.md` — status line, "What works today," "Current
     limitations," the roadmap table (Stage 2 now **done**, Stage 3
     marked **next**) and the conformance-ID table all updated; they had
@@ -518,13 +534,11 @@ confirm actual typing works before this is trusted end-to-end.
   services are what will consult `RuntimeContext.permissions`.
 
 - B1's plan item called for "visual regression baseline + conformance
-  test `UI-IMAGE-001`". Only the conformance test landed. Recording a
-  baseline requires actually running the renderer (`CIDER_UPDATE_BASELINES=1
-  swift test`), which needs a Swift toolchain this session did not have;
-  committing the test without running that step would mean committing a
-  guessed `.ppm` file or a test that fails on every future CI run for an
-  unrelated reason. Left for a session with a real toolchain instead of
-  guessing. See Open issues.
+  test `UI-IMAGE-001`". Only the conformance test landed in the original B1
+  session because recording a baseline required actually running the renderer
+  (`CIDER_UPDATE_BASELINES=1 swift test`), which needed a Swift toolchain that
+  session did not have. The missing image baseline has since been recorded in
+  the visual-baselines continuation above.
 
 - **B3's `HostEvent.textInput` is not implemented by the Linux backend.**
   The plan called for `Xutf8LookupString` in the X11 shim. That needs an
@@ -556,25 +570,6 @@ confirm actual typing works before this is trusted end-to-end.
 
 ## Open issues
 
-- **B1 (Image) has no visual-regression baseline.** A candidate test
-  (`testImageScreen`, exercising `Rasterizer.draw(image:...)`'s
-  nearest-neighbour sampler through a real scene) was written, then
-  reverted before committing: `assertMatchesBaseline` fails hard with no
-  baseline file present, and I had no Swift toolchain in this session to
-  run `CIDER_UPDATE_BASELINES=1 swift test --filter CiderVisualTests` and
-  record one — committing the test without its baseline would have
-  turned CI red for every push after it, for a reason unrelated to
-  whatever that push actually changed. Whoever has a real toolchain next
-  should re-add a case like it, record the baseline, eyeball the `.ppm`,
-  and commit both together in one change.
-- **No Stage 2 primitive after B1 has a visual-regression baseline
-  either**, same root cause: `ScrollView`, `TextField`, `List`,
-  `NavigationView` and `Modal` all have conformance coverage but no
-  pixel-level baseline. `tests/visual/VisualRegressionTests.swift`'s
-  harness is unchanged and generalizes to all of them (confirmed by
-  inspection, same as B9's HANDOFF entry notes) — this is purely "needs a
-  session with a real Swift toolchain to record and eyeball each one,"
-  not a design gap.
 - **B9's reference app (`examples/ui-showcase`) has never actually been
   run.** CI now *builds* it (see B9's Done entry), which is real signal
   that the compatibility API is reachable and the app type-checks, but

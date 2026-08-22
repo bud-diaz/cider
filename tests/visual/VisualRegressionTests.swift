@@ -103,6 +103,98 @@ final class VisualRegressionTests: XCTestCase {
         try assertMatchesBaseline(canvas, named: "capsule")
     }
 
+    /// Image rendering through a real scene, so the nearest-neighbour sampler is
+    /// covered by a reviewable pixel baseline rather than unit tests alone.
+    func testImageScreen() throws {
+        let source = ImageSource(
+            width: 12,
+            height: 8,
+            pixels: checkerboardPixels(width: 12, height: 8)
+        )
+        let view = VStack(spacing: 8) {
+            Text("Image")
+                .font(size: 12, weight: .bold)
+            Image(source)
+        }
+
+        try assertMatchesBaseline(render(view, width: 120, height: 90), named: "image-screen")
+    }
+
+    /// ScrollView clipping is visual: rows outside the viewport must not paint.
+    func testScrollViewScreen() throws {
+        let view = ScrollView(width: 96, height: 36) {
+            VStack(spacing: 0) {
+                Text("Row 0").font(size: 10)
+                Text("Row 1").font(size: 10)
+                Text("Row 2").font(size: 10)
+                Text("Row 3").font(size: 10)
+            }
+        }
+
+        try assertMatchesBaseline(render(view, width: 140, height: 90), named: "scroll-view-screen")
+    }
+
+    /// A focused TextField has distinct renderer output: the text box plus its
+    /// caret. This keeps the focus-specific drawing path under visual coverage.
+    func testTextFieldFocusedScreen() throws {
+        let text = CiderState(wrappedValue: "Bud")
+        let view = TextField(text, width: 100).font(size: 12)
+        let scene = Lowering.scene(from: view)
+        let focused = try XCTUnwrap(firstTextFieldID(in: scene.root))
+
+        try assertMatchesBaseline(
+            render(view, width: 140, height: 80, focused: focused),
+            named: "text-field-focused-screen"
+        )
+    }
+
+    /// List is implemented as a scroll view over rows; this baseline guards the
+    /// composition rather than introducing a fake List-specific renderer path.
+    func testListScreen() throws {
+        let view = List(width: 96, height: 48, spacing: 2) {
+            Text("Alpha").font(size: 10)
+            Text("Beta").font(size: 10)
+            Text("Gamma").font(size: 10)
+            Text("Delta").font(size: 10)
+        }
+
+        try assertMatchesBaseline(render(view, width: 140, height: 100), named: "list-screen")
+    }
+
+    /// NavigationView fills the proposed root bounds, so a visual baseline catches
+    /// regressions where the active screen collapses back to intrinsic centering.
+    func testNavigationScreen() throws {
+        let path = CiderState<[any CiderView]>(wrappedValue: [])
+        let view = NavigationView(path) {
+            VStack(spacing: 8) {
+                Text("Root").font(size: 12, weight: .bold)
+                Button("Open") {}
+            }
+        }
+
+        try assertMatchesBaseline(render(view, width: 160, height: 110), named: "navigation-screen")
+    }
+
+    /// A presented Modal draws base content, a dim overlay and presented content
+    /// in painter's order. That z-order is easier to trust as a baseline than as
+    /// a long list of command-order assertions alone.
+    func testModalPresentedScreen() throws {
+        let isPresented = CiderState(wrappedValue: true)
+        let view = Modal(isPresented) {
+            VStack(spacing: 8) {
+                Text("Base").font(size: 12)
+                Button("Present") {}
+            }
+        } presenting: {
+            VStack(spacing: 8) {
+                Text("Presented").font(size: 12, weight: .bold)
+                Button("Dismiss") {}
+            }
+        }
+
+        try assertMatchesBaseline(render(view, width: 160, height: 110), named: "modal-presented-screen")
+    }
+
     // MARK: - Properties that hold regardless of baseline
 
     /// Rendering the same scene twice must produce identical pixels. If this
@@ -133,7 +225,9 @@ final class VisualRegressionTests: XCTestCase {
         _ view: some CiderView,
         width: Int,
         height: Int,
-        pressed: NodeID? = nil
+        pressed: NodeID? = nil,
+        focused: NodeID? = nil,
+        scrollOffsets: [NodeID: Point] = [:]
     ) -> Canvas {
         let scene = Lowering.scene(from: view)
         let context = LayoutContext(textEngine: engine)
@@ -145,6 +239,8 @@ final class VisualRegressionTests: XCTestCase {
             layout: layout,
             backgroundColor: Theme.backgroundColor,
             pressedNode: pressed,
+            focusedNode: focused,
+            scrollOffsets: scrollOffsets,
             context: context
         )
 
@@ -175,6 +271,30 @@ final class VisualRegressionTests: XCTestCase {
             if let found = firstButtonID(in: child) { return found }
         }
         return nil
+    }
+
+    private func firstTextFieldID(in node: UINode) -> NodeID? {
+        if case .textField(let field) = node { return field.id }
+        for child in node.children {
+            if let found = firstTextFieldID(in: child) { return found }
+        }
+        return nil
+    }
+
+    private func checkerboardPixels(width: Int, height: Int) -> [UInt8] {
+        var pixels: [UInt8] = []
+        pixels.reserveCapacity(width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let isAccent = (x / 3 + y / 2).isMultiple(of: 2)
+                if isAccent {
+                    pixels.append(contentsOf: [0x1F, 0x6F, 0xEB, 0xFF])
+                } else {
+                    pixels.append(contentsOf: [0xFF, 0xCC, 0x00, 0xFF])
+                }
+            }
+        }
+        return pixels
     }
 
     private func assertMatchesBaseline(
