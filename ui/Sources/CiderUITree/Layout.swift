@@ -72,6 +72,11 @@ public enum LayoutEngine {
 
         case .image(let image):
             return Size(width: Double(image.source.width), height: Double(image.source.height))
+
+        case .scrollView(let scroll):
+            // The viewport is explicit, not derived from content: a scroll
+            // view's whole point is that its content can be larger than it.
+            return scroll.viewportSize
         }
     }
 
@@ -135,6 +140,18 @@ public enum LayoutEngine {
             }
 
             return LayoutBox(id: stack.id, frame: frame, children: children)
+
+        case .scrollView(let scroll):
+            // The content is placed at its own natural size, at the same
+            // origin as the viewport -- this is the *unscrolled* reference
+            // frame. Applying the current scroll offset is a render-tree
+            // concern (RenderTreeBuilder), not a layout concern, the same way
+            // a button's pressed appearance is: layout describes where things
+            // are absent interaction, and offsetting every descendant frame
+            // on every scroll tick would mean relaying out on every tick too.
+            let contentSize = measure(scroll.content, context: context)
+            let contentBox = place(scroll.content, at: origin, size: contentSize, context: context)
+            return LayoutBox(id: scroll.id, frame: frame, children: [contentBox])
         }
     }
 }

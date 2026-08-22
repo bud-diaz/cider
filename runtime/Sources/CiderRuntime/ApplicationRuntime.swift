@@ -63,6 +63,12 @@ public final class ApplicationRuntime: InvalidationTarget {
     /// reason `pressedNode` exists for touch.
     private var focusedNode: NodeID?
 
+    /// Current scroll position of every scroll view that has one, keyed by
+    /// identity. A view not in this dictionary is at (0, 0); an entry is
+    /// pruned when its node disappears in a rebuild, the same reasoning as
+    /// `pressedNode`/`focusedNode`.
+    private var scrollOffsets: [NodeID: Point] = [:]
+
     /// Frames presented since launch. Exposed for tests and the inspector.
     public private(set) var frameCount = 0
 
@@ -73,6 +79,11 @@ public final class ApplicationRuntime: InvalidationTarget {
     // single screen.
 
     public var backgroundColor = Color(hex: 0xF2F2F7)
+
+    /// Points a single wheel notch scrolls. Chosen to feel like a few lines
+    /// of body text per notch; there is no reference platform behaviour to
+    /// match yet, the same reasoning as `backgroundColor` above.
+    public var scrollNotchDistance = 40.0
 
     public init(
         descriptor: LaunchDescriptor,
@@ -199,11 +210,8 @@ public final class ApplicationRuntime: InvalidationTarget {
             guard let touch = translator?.touch(for: event) else { return }
             handle(touch)
 
-        case .scroll(let deltaX, let deltaY):
-            // No scroll container exists yet to consume this -- it lands with
-            // Stage 2's scroll view -- so for now this only proves the event
-            // reaches the runtime.
-            log.trace("scroll dx=\(deltaX) dy=\(deltaY)")
+        case .scroll(let location, let deltaX, let deltaY):
+            handleScroll(at: location, deltaX: deltaX, deltaY: deltaY)
 
         case .keyDown(let keyCode):
             if let focusedNode {
@@ -290,6 +298,42 @@ public final class ApplicationRuntime: InvalidationTarget {
         }
     }
 
+    /// Routes a wheel notch to whichever scroll view is under it, and clamps
+    /// the result so content can't be scrolled past its own edges.
+    ///
+    /// Clamping needs both the viewport's size and its content's natural
+    /// size. Both are sitting in `lastLayout` already -- the scroll view's
+    /// own placed frame is the viewport, and its one child's placed frame
+    /// (computed at the content's unbounded intrinsic size; see
+    /// `LayoutEngine.place`'s `.scrollView` case) is the content -- so this
+    /// reads the existing layout tree rather than asking for a fresh one.
+    private func handleScroll(at location: Point, deltaX: Double, deltaY: Double) {
+        guard let renderTree, let lastLayout, let translator else { return }
+
+        let point = translator.convert(location)
+        guard let target = renderTree.scrollTarget(at: point) else { return }
+        guard let viewportBox = lastLayout.box(for: target), let contentBox = viewportBox.children.first else {
+            return
+        }
+
+        let maxOffsetX = max(0, contentBox.frame.width - viewportBox.frame.width)
+        let maxOffsetY = max(0, contentBox.frame.height - viewportBox.frame.height)
+
+        let current = scrollOffsets[target] ?? .zero
+        let proposed = Point(
+            x: current.x + deltaX * scrollNotchDistance,
+            y: current.y + deltaY * scrollNotchDistance
+        )
+        let clamped = Point(
+            x: min(max(0, proposed.x), maxOffsetX),
+            y: min(max(0, proposed.y), maxOffsetY)
+        )
+
+        guard clamped != current else { return }
+        scrollOffsets[target] = clamped
+        needsRender = true
+    }
+
     // MARK: - Invalidation and rendering
 
     func setNeedsRebuild() {
@@ -332,6 +376,14 @@ public final class ApplicationRuntime: InvalidationTarget {
                 focusedNode = nil
             }
 
+            // And for scroll position: a scroll view that vanished must not
+            // leave a stale offset sitting around forever, and if a scroll
+            // view with the same identity reappears (same structural path),
+            // this correctly does nothing -- box(for:) finds it and the old
+            // offset is exactly what a developer would expect to survive an
+            // unrelated state change.
+            scrollOffsets = scrollOffsets.filter { id, _ in layout.box(for: id) != nil }
+
             needsRebuild = false
 
             if descriptor.inspectorEnabled {
@@ -346,6 +398,7 @@ public final class ApplicationRuntime: InvalidationTarget {
             layout: layout,
             backgroundColor: backgroundColor,
             pressedNode: pressedNode,
+            scrollOffsets: scrollOffsets,
             context: context
         )
         self.renderTree = tree
@@ -379,6 +432,12 @@ public final class ApplicationRuntime: InvalidationTarget {
     /// The node with keyboard focus, if any. Always `nil` until a focusable
     /// node kind exists to set it.
     public var currentFocusedNode: NodeID? { focusedNode }
+
+    /// The current scroll position of the scroll view identified by `id`,
+    /// or `.zero` if it has never been scrolled (or isn't a scroll view).
+    public func currentScrollOffset(for id: NodeID) -> Point {
+        scrollOffsets[id] ?? .zero
+    }
 
     // MARK: - Plumbing
 

@@ -87,7 +87,7 @@ final class PointerTranslationTests: XCTestCase {
         XCTAssertNil(translator.touch(for: .redrawRequested))
         XCTAssertNil(translator.touch(for: .closeRequested))
         XCTAssertNil(translator.touch(for: .resized(width: 10, height: 10)))
-        XCTAssertNil(translator.touch(for: .scroll(deltaX: 0, deltaY: 1)))
+        XCTAssertNil(translator.touch(for: .scroll(location: .zero, deltaX: 0, deltaY: 1)))
         XCTAssertNil(translator.touch(for: .keyDown(keyCode: 65)))
         XCTAssertNil(translator.touch(for: .keyUp(keyCode: 65)))
         XCTAssertNil(translator.touch(for: .textInput("a")))

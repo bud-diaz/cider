@@ -126,3 +126,21 @@ struct ImageOnlyApp: CiderApp {
         Image(.solid(Color(hex: 0xFF00FF), width: 12, height: 8))
     }
 }
+
+/// A short viewport over content taller than it, with a button positioned so
+/// it starts out entirely scrolled out of view -- for the scroll conformance
+/// test, including whether hit-testing respects the clip.
+struct ScrollTestApp: CiderApp {
+    @CiderState var count = 0
+
+    var body: some CiderView {
+        ScrollView(width: 100, height: 20) {
+            VStack(spacing: 0) {
+                Text("Row 0").font(size: 10)
+                Text("Row 1").font(size: 10)
+                Button("Tap") { count += 1 }.font(size: 10)
+                Text("Count: \(count)").font(size: 10)
+            }
+        }
+    }
+}

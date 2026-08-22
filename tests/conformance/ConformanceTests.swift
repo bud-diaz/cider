@@ -15,6 +15,7 @@
 //    INPUT-POINTER-001 a pointer becomes a touch, and a touch hit-tests
 //    STATE-UPDATE-001  a button action changes state and the next frame shows it
 //    UI-IMAGE-001      Image lowers to an ImageNode and draws at its intrinsic size
+//    UI-SCROLL-001     ScrollView clips its content and scrolling moves it, clamped
 
 import XCTest
 
@@ -496,5 +497,139 @@ final class ConformanceTests: XCTestCase {
         XCTAssertEqual(rect, box.frame)
         XCTAssertEqual(source.width, 12)
         XCTAssertEqual(source.height, 8)
+    }
+
+    // MARK: - UI-SCROLL-001
+
+    /// UI-SCROLL-001: a `ScrollView` becomes one ScrollViewNode at its
+    /// explicit viewport size, wrapping its content.
+    func testUI_SCROLL_001_scrollViewLowersToAScrollViewNode() throws {
+        struct App: CiderApp {
+            var body: some CiderView {
+                ScrollView(width: 100, height: 20) { Text("Hello") }
+            }
+        }
+
+        let scene = Lowering.scene(from: App().body)
+        guard case .scrollView(let node) = scene.root else {
+            return XCTFail("expected a ScrollViewNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(node.viewportSize, Size(width: 100, height: 20))
+        guard case .text(let text) = node.content else {
+            return XCTFail("expected the scroll view's content to be the Text directly")
+        }
+        XCTAssertEqual(text.text, "Hello")
+    }
+
+    /// UI-SCROLL-001: the viewport is sized exactly as declared, and its
+    /// content is laid out at its own natural size -- taller than the
+    /// viewport here, which is the point of a scroll view.
+    func testUI_SCROLL_001_viewportIsExplicitAndContentCanBeTaller() throws {
+        let harness = try ConformanceHarness(ScrollTestApp())
+        try harness.launch()
+
+        let box = try XCTUnwrap(harness.runtime.currentLayout)
+        XCTAssertEqual(box.frame.width, 100, accuracy: 1e-9)
+        XCTAssertEqual(box.frame.height, 20, accuracy: 1e-9)
+
+        let content = try XCTUnwrap(box.children.first)
+        XCTAssertGreaterThan(content.frame.height, box.frame.height)
+        XCTAssertEqual(content.frame.height, 72, accuracy: 1e-9, "2 rows + a button + a row, all at 10pt")
+    }
+
+    /// UI-SCROLL-001: the scroll view's content is bracketed by a matching
+    /// pushClip/popClip pair -- nothing else is drawn between them, since the
+    /// scroll view is this app's only content.
+    func testUI_SCROLL_001_contentIsClipped() throws {
+        let harness = try ConformanceHarness(ScrollTestApp())
+        try harness.launch()
+
+        let tree = try XCTUnwrap(harness.runtime.currentRenderTree)
+        guard case .pushClip = tree.commands.first else {
+            return XCTFail("expected the first command to be pushClip, got \(tree.commands.first as Any)")
+        }
+        guard case .popClip = tree.commands.last else {
+            return XCTFail("expected the last command to be popClip, got \(tree.commands.last as Any)")
+        }
+    }
+
+    /// UI-SCROLL-001: a button scrolled entirely out of the viewport cannot
+    /// be tapped at its unscrolled position -- hit-testing must agree with
+    /// what's actually visible, not with the content's full, unclipped extent.
+    func testUI_SCROLL_001_contentOutsideTheViewportIsNotHittable() throws {
+        let harness = try ConformanceHarness(ScrollTestApp())
+        try harness.launch()
+
+        // The button sits at content y 24...60; the viewport shows only 0...20.
+        // Tapping anywhere in the button's full-content vertical range, at the
+        // viewport's own (visible) horizontal position, must not hit it.
+        let viewport = try XCTUnwrap(harness.runtime.currentRenderTree?.scrollRegions.first)
+        try harness.tap(at: Point(x: viewport.frame.midX, y: viewport.frame.minY + 24 + 5))
+
+        XCTAssertTrue(harness.drawnStrings().contains("Count: 0"), "the button must not have been reachable")
+    }
+
+    /// UI-SCROLL-001: scrolling moves the content, and a control that scrolls
+    /// into view becomes tappable at its new, on-screen position.
+    func testUI_SCROLL_001_scrollingBringsContentIntoViewAndItBecomesTappable() throws {
+        let harness = try ConformanceHarness(ScrollTestApp())
+        try harness.launch()
+
+        let viewport = try XCTUnwrap(harness.runtime.currentRenderTree?.scrollRegions.first)
+        let scrollViewID = viewport.id
+
+        // Scroll, one notch (ApplicationRuntime.scrollNotchDistance's default
+        // 40pt) at a time, until the button's top (content y 24) has cleared
+        // the viewport's top edge. Bounded rather than an unconditional
+        // `while` so a scrolling regression fails the assertion below instead
+        // of hanging the suite.
+        for _ in 0..<10 where harness.runtime.currentScrollOffset(for: scrollViewID).y < 24 {
+            try harness.deliver([
+                .scroll(location: Point(x: viewport.frame.midX, y: viewport.frame.midY), deltaX: 0, deltaY: 1),
+            ])
+        }
+
+        let offset = harness.runtime.currentScrollOffset(for: scrollViewID)
+        XCTAssertGreaterThanOrEqual(offset.y, 24)
+
+        let tree = try XCTUnwrap(harness.runtime.currentRenderTree)
+        let button = try XCTUnwrap(tree.hitRegions.first, "the button should now be at least partly visible")
+        try harness.tap(at: Point(x: button.frame.midX, y: button.frame.midY))
+
+        XCTAssertTrue(harness.drawnStrings().contains("Count: 1"), "the button is now visible and must be tappable")
+    }
+
+    /// UI-SCROLL-001: scrolling cannot push content past its own end.
+    func testUI_SCROLL_001_scrollingClampsAtTheContentsEnd() throws {
+        let harness = try ConformanceHarness(ScrollTestApp())
+        try harness.launch()
+
+        let viewport = try XCTUnwrap(harness.runtime.currentRenderTree?.scrollRegions.first)
+        let scrollViewID = viewport.id
+
+        // Content is 72pt tall, the viewport 20pt: the maximum offset is 52.
+        // 20 notches at 40pt each is far more than enough to over-scroll.
+        for _ in 0..<20 {
+            try harness.deliver([
+                .scroll(location: Point(x: viewport.frame.midX, y: viewport.frame.midY), deltaX: 0, deltaY: 1),
+            ])
+        }
+
+        XCTAssertEqual(harness.runtime.currentScrollOffset(for: scrollViewID).y, 52, accuracy: 1e-9)
+    }
+
+    /// UI-SCROLL-001: scrolling cannot push content before its own start.
+    func testUI_SCROLL_001_scrollingClampsAtTheStart() throws {
+        let harness = try ConformanceHarness(ScrollTestApp())
+        try harness.launch()
+
+        let viewport = try XCTUnwrap(harness.runtime.currentRenderTree?.scrollRegions.first)
+        let scrollViewID = viewport.id
+
+        try harness.deliver([
+            .scroll(location: Point(x: viewport.frame.midX, y: viewport.frame.midY), deltaX: 0, deltaY: -5),
+        ])
+
+        XCTAssertEqual(harness.runtime.currentScrollOffset(for: scrollViewID).y, 0, accuracy: 1e-9)
     }
 }

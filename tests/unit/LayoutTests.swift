@@ -41,6 +41,16 @@ final class LayoutTests: XCTestCase {
         )
     }
 
+    private func scrollView(_ id: String, width: Double, height: Double, content: UINode) -> UINode {
+        .scrollView(
+            ScrollViewNode(
+                id: NodeID(path: id),
+                viewportSize: Size(width: width, height: height),
+                content: content
+            )
+        )
+    }
+
     private func image(_ id: String, width: Int, height: Int) -> UINode {
         .image(
             ImageNode(
@@ -102,6 +112,23 @@ final class LayoutTests: XCTestCase {
     func testImageMeasuresToItsSourcePixelDimensions() {
         let size = LayoutEngine.measure(image("i", width: 40, height: 30), context: context)
         XCTAssertEqual(size, Size(width: 40, height: 30))
+    }
+
+    func testScrollViewMeasuresToItsExplicitViewportSizeRegardlessOfContent() {
+        // The whole point of a scroll view is that its content can be a
+        // different size than it is -- much larger, here.
+        let tallContent = UINode.vstack(
+            VStackNode(
+                id: NodeID(path: "s/0"),
+                spacing: 0,
+                alignment: .center,
+                children: (0..<20).map { text("s/0/\($0)", "row", size: 10) }
+            )
+        )
+        let scroll = scrollView("s", width: 90, height: 50, content: tallContent)
+
+        let size = LayoutEngine.measure(scroll, context: context)
+        XCTAssertEqual(size, Size(width: 90, height: 50))
     }
 
     // MARK: - Placement
@@ -167,6 +194,43 @@ final class LayoutTests: XCTestCase {
 
         XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 40, height: 30))
         XCTAssertTrue(box.children.isEmpty)
+    }
+
+    func testScrollViewPlacesItsContentAtTheViewportsOriginUnscrolled() {
+        // Layout describes the *unscrolled* reference frame -- content starts
+        // flush with the viewport's top-left. Applying an actual scroll
+        // offset is RenderTreeBuilder's job (see RasterizerClipTests-adjacent
+        // coverage in ConformanceTests' UI-SCROLL-001 for that half).
+        let content = text("s/0", "hello", size: 10)
+        let node = scrollView("s", width: 90, height: 50, content: content)
+
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 90, height: 50), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 90, height: 50))
+        XCTAssertEqual(box.children.count, 1)
+
+        let contentBox = box.children[0]
+        XCTAssertEqual(contentBox.frame.minX, 5, accuracy: 1e-9)
+        XCTAssertEqual(contentBox.frame.minY, 9, accuracy: 1e-9)
+        // The content's own natural size (5 glyphs at 0.6 x 10pt, 1.2 x 10pt
+        // line height), not the viewport's -- it can be smaller or larger.
+        XCTAssertEqual(contentBox.frame.width, 5 * 6, accuracy: 1e-9)
+        XCTAssertEqual(contentBox.frame.height, 12, accuracy: 1e-9)
+    }
+
+    func testScrollViewContentCanExceedTheViewport() {
+        let tallContent = UINode.vstack(
+            VStackNode(
+                id: NodeID(path: "s/0"),
+                spacing: 0,
+                alignment: .center,
+                children: (0..<20).map { text("s/0/\($0)", "row", size: 10) }
+            )
+        )
+        let node = scrollView("s", width: 90, height: 50, content: tallContent)
+        let box = LayoutEngine.place(node, at: .zero, size: Size(width: 90, height: 50), context: context)
+
+        XCTAssertGreaterThan(box.children[0].frame.height, box.frame.height)
     }
 
     func testBoxLookupFindsNestedNodes() {

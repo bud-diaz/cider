@@ -280,6 +280,8 @@ int cider_x11_window_poll_event(cider_x11_window *window, cider_x11_event *out) 
                unit of delta in the matching direction. */
             if (event.xbutton.button >= 4 && event.xbutton.button <= 7) {
                 out->kind = CIDER_X11_EVENT_SCROLL;
+                out->x = event.xbutton.x;
+                out->y = event.xbutton.y;
                 switch (event.xbutton.button) {
                 case 4: out->scroll_delta_y = -1; break;
                 case 5: out->scroll_delta_y = 1; break;

@@ -1,29 +1,30 @@
-//  Smoke tests for the scroll/keyboard event plumbing landed ahead of any
-//  node kind that consumes it (Stage 2's scroll view, list and text field).
+//  Smoke tests for host input events that reach the runtime with no effect
+//  when nothing on screen consumes them.
 //
-//  There is no application-facing behaviour to give these a conformance ID
-//  yet -- nothing on screen changes -- so unlike the tests in
-//  ConformanceTests.swift these aren't numbered. What they pin down is
-//  narrower: the runtime accepts these events without crashing, and without
-//  side effects on state nothing has asked it to change yet.
+//  Scroll has a real consumer since B4 (ScrollView) -- see UI-SCROLL-001 in
+//  ConformanceTests.swift for its actual behaviour. Keyboard events still
+//  have none (no node kind accepts focus until B5's text field), so those
+//  cases here aren't numbered: there's no application-facing behaviour yet
+//  to certify.
 
 import XCTest
 
+import CiderCore
 import CiderHost
 
 final class HostInputPlumbingTests: XCTestCase {
 
-    func testScrollEventsAreAcceptedAndChangeNothingObservable() throws {
+    func testScrollOverAnAppWithNoScrollViewChangesNothing() throws {
         let harness = try ConformanceHarness(CounterApp())
         try harness.launch()
 
         let framesBefore = harness.backend.presentedFrames.count
-        try harness.deliver([.scroll(deltaX: 0, deltaY: 1)])
+        try harness.deliver([.scroll(location: Point(x: 10, y: 10), deltaX: 0, deltaY: 1)])
 
         XCTAssertEqual(harness.runtime.state, .foreground)
         XCTAssertEqual(
             harness.backend.presentedFrames.count, framesBefore,
-            "nothing consumes scroll yet, so it must not trigger a redraw"
+            "nothing scrollable is on screen, so the scroll must not trigger a redraw"
         )
     }
 

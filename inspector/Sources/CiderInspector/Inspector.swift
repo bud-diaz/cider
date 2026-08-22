@@ -36,6 +36,8 @@ public enum Inspector {
             line += "  spacing=\(format(stack.spacing)) alignment=\(stack.alignment.rawValue)"
         case .image(let image):
             line += "  \(image.source.width)x\(image.source.height)"
+        case .scrollView(let scroll):
+            line += "  viewport=\(format(scroll.viewportSize.width))x\(format(scroll.viewportSize.height))"
         }
 
         var lines = [line]

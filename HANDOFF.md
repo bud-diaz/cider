@@ -10,25 +10,26 @@ session, whether or not the milestone finished.
 ## Status
 
 Part A (Stage 1 close-out), **B1** (Image), **B2** (layout/rendering
-foundations) and **B3** (host input plumbing) are done. Next up: **B4**
-(ScrollView), which depends on both B2 (bounded size + clip) and B3
-(scroll event) — both are now in place.
+foundations), **B3** (host input plumbing) and **B4** (ScrollView) are
+done. Next up: **B5** (TextField), which depends on B3's keyboard event
+plumbing (and inherits its `textInput` caveat — see B3's Deviations entry
+below, still unresolved).
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
-CI came back green on Part A (159f987), B1 (1d20d63) and B2 (c272a26).
-B3 has been pushed for the same verification; check its result before
-starting B4. **Important caveat for B3 specifically**: CI's `swift
-build`/`swift test` compile the X11 C shim (CiderUI depends on
-CiderHostBootstrap → CiderHostLinux → CX11Shim, and the test targets
-import CiderUI) but never execute it — every test uses the headless
-`TestingHostBackend`, never `LinuxHostBackend`/real X11. So a green CI run
-on B3 means the C changes compile and the Swift-side plumbing is
-logically sound; it is NOT evidence that scrolling or key events actually
-work when `cider run` opens a real X11 window. That needs a human (or a
-future session with real display access) to run
-`examples/hello-cider` under Xvfb or a real X session and try the mouse
-wheel and keyboard before this is trusted end-to-end.
+CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26) and B3
+(8676a50 + the B4 location-field fix). B4 has been pushed for the same
+verification; check its result before starting B5.
+
+**Caveat carried from B3, still true**: CI's `swift build`/`swift test`
+compile the X11 C shim but never execute it — every test uses the
+headless `TestingHostBackend`. A green CI run is not evidence that
+scrolling or key events actually work when `cider run` opens a real X11
+window. B4's scroll-wheel-to-offset behavior specifically has only been
+verified against the testing backend's synthetic `.scroll` events, never
+a real mouse wheel. Someone with real display access should run
+`examples/hello-cider` and confirm the wheel actually scrolls something
+before this is trusted end-to-end.
 
 ## Done
 
@@ -146,6 +147,63 @@ wheel and keyboard before this is trusted end-to-end.
     application-facing behavior yet to certify) confirming the events
     are accepted without side effects.
 
+- **B4** — ScrollView, all five ADR-0003 touchpoints plus a fix to B3:
+  - **Fix to B3**: `HostEvent.scroll` was missing a `location`. Realized
+    while designing B4 (routing a wheel notch to the right scroll view
+    under the pointer needs a location, the same way a tap does) — X11
+    ButtonPress already carries `x`/`y` even for the wheel-notch buttons,
+    so this was a small, low-risk addition to the same commit rather than
+    amending the already-pushed B3 commit: `HostEvent.scroll(location:deltaX:deltaY:)`,
+    the C shim now sets `out->x`/`out->y` in the scroll branch,
+    `X11Window.translate` passes them through. See Deviations for why
+    this wasn't caught in B3's own review.
+  - `ScrollViewNode` (`ui/Sources/CiderUITree/UINode.swift`): explicit
+    `viewportSize` + one `content: UINode` child. Explicit size because
+    nothing implements "fill the space my parent gives me" yet —
+    `layoutCentered`'s own doc comment already flags that as a B7
+    problem, not B4's.
+  - `Layout.swift`: `.scrollView` measures to `viewportSize` regardless
+    of content; places content at its own natural size, at the *same
+    origin* as the viewport (the unscrolled reference frame — applying
+    an actual scroll offset is a render-tree concern, not layout, same
+    reasoning as a button's pressed color).
+  - `RenderTree.swift` — the biggest change: `RenderTreeBuilder.append`
+    now threads an `offset: Point` (accumulated scroll displacement) and
+    a `clip: Rect?` (accumulated viewport intersection) through the
+    recursion. `.scrollView` emits `pushClip`/`popClip` around its
+    content and offsets the content's subtree by `-scrollOffset`.
+    **Important correctness fix caught while writing tests, not part of
+    the original plan item**: button hit regions are now intersected
+    with the active clip before being added (and skipped entirely if
+    fully clipped) — without this, a button scrolled out of view stayed
+    tappable at its old, invisible position, because `RenderTree.hitTest`
+    doesn't know about the rasterizer's clip stack. Added
+    `RenderTree.scrollRegions`/`scrollTarget(at:)`, parallel to
+    `hitRegions`/`hitTest` but for "which scroll view is under this
+    point" rather than "which button."
+  - `ApplicationRuntime.swift`: `scrollOffsets: [NodeID: Point]`
+    (pruned on rebuild, same pattern as `pressedNode`/`focusedNode`),
+    `scrollNotchDistance` (40pt/notch, analogous to the existing
+    `backgroundColor` "hard-coded for the MVP" constants — deliberately
+    *not* in `CiderUI.Theme`, since `CiderRuntime` must not depend on
+    `CiderUI`), and `handleScroll(at:deltaX:deltaY:)`: hit-tests the
+    scroll target, clamps the new offset against the content/viewport
+    sizes already sitting in `lastLayout`.
+  - `ScrollView` view (`compatibility/Sources/CiderUI/ScrollView.swift`):
+    takes an explicit `width`/`height`. Handles the "content builder
+    produced 0 or 2+ top-level nodes" case (mirroring what
+    `Lowering.scene` already does for an app's body) by wrapping them in
+    a synthetic `VStackNode` whose id is `"<id>/wrap"` — a suffix that
+    can never collide with a real child's numeric identity — rather than
+    reusing the scroll view's own id, which would have made two
+    different `UINode`s share one `NodeID`.
+  - Tests: `UI-SCROLL-001` (7 cases: lowering, viewport/content sizing,
+    clip bracketing, clip-aware hit-testing both ways, clamping at both
+    ends) in `tests/conformance/ConformanceTests.swift` +
+    `ScrollTestApp` in `ConformanceHarness.swift`; layout measure/place
+    cases in `tests/unit/LayoutTests.swift`; the B3 location fix
+    propagated into `PointerTranslationTests.swift`.
+
 ## Deviations
 
 - The plan suggested putting sandbox path resolution "alongside
@@ -197,6 +255,13 @@ wheel and keyboard before this is trusted end-to-end.
   (backspace, printable ASCII via keysym) without full IME composition
   and note that as a known limitation.
 
+- B3 shipped `HostEvent.scroll` without a `location`, which B4 then had
+  to add back in. In hindsight this should have been obvious in B3
+  itself (a scroll event needs to say *where*, the same way a click
+  does) — flagging the miss here rather than quietly folding it in, since
+  the plan's review process should catch this kind of thing earlier next
+  time a session designs a new `HostEvent` case.
+
 ## Open issues
 
 - **B1 (Image) has no visual-regression baseline.** A candidate test
@@ -219,9 +284,11 @@ authoritative list):
 - `APP-LAUNCH-001`, `UI-TEXT-001`, `UI-VSTACK-001`, `UI-BUTTON-001`,
   `INPUT-POINTER-001`, `STATE-UPDATE-001`
 
-Reserved by this plan, not yet implemented:
+Implemented by this plan:
 - `UI-IMAGE-001` (B1)
 - `UI-SCROLL-001` (B4)
+
+Reserved, not yet implemented:
 - `UI-TEXTFIELD-001` (B5)
 - `UI-LIST-001` (B6)
 - `NAV-PUSH-001`, `NAV-POP-001` (B7)

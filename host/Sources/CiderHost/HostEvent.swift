@@ -40,13 +40,16 @@ public enum HostEvent: Sendable, Equatable {
     /// The user asked the window to close.
     case closeRequested
 
-    /// The scroll wheel moved. Positive `deltaY` is downward, positive
-    /// `deltaX` is rightward, matching `Point`'s axes elsewhere. Units are
-    /// "notches" (one full detent of a traditional wheel) rather than
-    /// points -- converting that into a scroll distance is a decision for
-    /// whatever consumes it, the same way a pointer only becomes a `Touch`
-    /// once it reaches the runtime.
-    case scroll(deltaX: Double, deltaY: Double)
+    /// The scroll wheel moved over `location` (device pixels, window-relative,
+    /// same convention as the pointer events -- a wheel notch is delivered at
+    /// a position, the same way a click is, so the runtime can tell which of
+    /// several scrollable regions it landed on). Positive `deltaY` is
+    /// downward, positive `deltaX` is rightward, matching `Point`'s axes
+    /// elsewhere. Units are "notches" (one full detent of a traditional
+    /// wheel) rather than points -- converting that into a scroll distance is
+    /// a decision for whatever consumes it, the same way a pointer only
+    /// becomes a `Touch` once it reaches the runtime.
+    case scroll(location: Point, deltaX: Double, deltaY: Double)
 
     /// A key went down. `keyCode` is the host's raw keysym -- there is no
     /// portable key-code space yet, so a value here is only meaningful

@@ -128,17 +128,40 @@ public struct VStackNode: Equatable, Sendable {
     }
 }
 
+/// A scrollable viewport over a single child that may be larger than it.
+///
+/// `viewportSize` is explicit rather than inherited from a parent's proposed
+/// size: `LayoutEngine.measure`'s `proposedSize` parameter exists but nothing
+/// consults it yet (see its doc comment), and the root layout path
+/// (`layoutCentered`) doesn't propose one at all. An explicit size is the
+/// honest MVP scope -- "fill the space my parent gives me" is real work
+/// `layoutCentered`'s own doc comment already flags as a placeholder Stage 2
+/// needs to replace, and that replacement is B7's job, not this one's.
+public struct ScrollViewNode: Equatable, Sendable {
+    public var id: NodeID
+    public var viewportSize: Size
+    public var content: UINode
+
+    public init(id: NodeID, viewportSize: Size, content: UINode) {
+        self.id = id
+        self.viewportSize = viewportSize
+        self.content = content
+    }
+}
+
 /// docs/05-implementation-roadmap.md Stage 2 adds scrolling, lists,
 /// navigation and modals on top of the Stage 0/1 set (text, button, stack);
-/// `image` is the first of those to land. Per docs/adr/0003-ui-tree-model.md,
-/// adding a node kind means touching this type, `LayoutEngine.measure`,
-/// `LayoutEngine.place`, `RenderTreeBuilder` and `Inspector` -- five places,
-/// deliberately, each an exhaustive switch with no `default:`.
+/// `image` and `scrollView` are the first two of those to land. Per
+/// docs/adr/0003-ui-tree-model.md, adding a node kind means touching this
+/// type, `LayoutEngine.measure`, `LayoutEngine.place`, `RenderTreeBuilder`
+/// and `Inspector` -- five places, deliberately, each an exhaustive switch
+/// with no `default:`.
 public indirect enum UINode: Equatable, Sendable {
     case text(TextNode)
     case button(ButtonNode)
     case vstack(VStackNode)
     case image(ImageNode)
+    case scrollView(ScrollViewNode)
 
     public var id: NodeID {
         switch self {
@@ -146,12 +169,14 @@ public indirect enum UINode: Equatable, Sendable {
         case .button(let node): return node.id
         case .vstack(let node): return node.id
         case .image(let node): return node.id
+        case .scrollView(let node): return node.id
         }
     }
 
     public var children: [UINode] {
         switch self {
         case .vstack(let node): return node.children
+        case .scrollView(let node): return [node.content]
         case .text, .button, .image: return []
         }
     }
@@ -163,6 +188,7 @@ public indirect enum UINode: Equatable, Sendable {
         case .button: return "ButtonNode"
         case .vstack: return "VStackNode"
         case .image: return "ImageNode"
+        case .scrollView: return "ScrollViewNode"
         }
     }
 }

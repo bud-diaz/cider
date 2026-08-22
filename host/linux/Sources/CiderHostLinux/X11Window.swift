@@ -110,7 +110,11 @@ final class X11Window: HostWindow {
         case CIDER_X11_EVENT_CLOSE.rawValue:
             return .closeRequested
         case CIDER_X11_EVENT_SCROLL.rawValue:
-            return .scroll(deltaX: Double(raw.scroll_delta_x), deltaY: Double(raw.scroll_delta_y))
+            return .scroll(
+                location: location,
+                deltaX: Double(raw.scroll_delta_x),
+                deltaY: Double(raw.scroll_delta_y)
+            )
         case CIDER_X11_EVENT_KEY_DOWN.rawValue:
             return .keyDown(keyCode: Int(raw.key_sym))
         case CIDER_X11_EVENT_KEY_UP.rawValue:
