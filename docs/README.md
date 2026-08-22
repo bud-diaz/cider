@@ -33,6 +33,10 @@ The initial product goal is narrower:
     performance, and security testing.
 7.  `07-legal-distribution-boundaries.md` --- clean-room principles,
     trademarks, proprietary assets, contributor rules.
+8.  `Cider_DESIGN.md` --- locked brand/design specification: palette,
+    logo direction, typography, UI direction, voice, and misuse rules.
+9.  `Cider Branding.md` --- exploratory brand rationale that led to the
+    locked design direction.
 
 ## Working Project Definition
 

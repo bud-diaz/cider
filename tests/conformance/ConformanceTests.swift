@@ -21,6 +21,7 @@
 //    NAV-PUSH-001      NavigationView lowers to a NavigationStackNode and pushes screens
 //    NAV-POP-001       popping a navigation stack returns to the screen underneath
 //    UI-MODAL-001      Modal dims and overlays base content, and blocks taps to it
+//    STYLE-BRAND-001   Stage 2 defaults use the locked Cider brand palette
 
 import XCTest
 
@@ -94,6 +95,30 @@ final class ConformanceTests: XCTestCase {
             XCTAssertEqual(diagnostic?.code, "CID0201")
             XCTAssertTrue(diagnostic?.remedy?.contains("phone-standard") ?? false)
         }
+    }
+
+    // MARK: - STYLE-BRAND-001
+
+    /// STYLE-BRAND-001: the Stage 2 default theme follows the locked brand palette from
+    /// docs/Cider_DESIGN.md: dark technical surfaces, warm white text, and amber
+    /// as the restrained accent instead of the old generic blue UI colour.
+    func testSTYLE_BRAND_001_lockedPaletteDrivesTheMVPTheme() {
+        XCTAssertEqual(Theme.ciderBlack.packed, 0xFF10100F)
+        XCTAssertEqual(Theme.ciderGraphite.packed, 0xFF1C1C1A)
+        XCTAssertEqual(Theme.ciderSurface.packed, 0xFF242421)
+        XCTAssertEqual(Theme.ciderBorder.packed, 0xFF34342F)
+        XCTAssertEqual(Theme.ciderMuted.packed, 0xFF8F8D86)
+        XCTAssertEqual(Theme.ciderText.packed, 0xFFF5F1E8)
+        XCTAssertEqual(Theme.ciderAmber.packed, 0xFFE89A2F)
+        XCTAssertEqual(Theme.ciderAmberBright.packed, 0xFFFFB547)
+
+        XCTAssertEqual(Theme.backgroundColor, Theme.ciderBlack)
+        XCTAssertEqual(Theme.textColor, Theme.ciderText)
+        XCTAssertEqual(Theme.accentColor, Theme.ciderAmber)
+        XCTAssertEqual(Theme.accentPressedColor, Theme.ciderAmberBright)
+        XCTAssertEqual(Theme.accentTextColor, Theme.ciderBlack)
+        XCTAssertEqual(Theme.textFieldBackgroundColor, Theme.ciderSurface)
+        XCTAssertEqual(Theme.buttonCornerRadius, 8)
     }
 
     // MARK: - UI-TEXT-001

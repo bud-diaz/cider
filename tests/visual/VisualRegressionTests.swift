@@ -83,7 +83,7 @@ final class VisualRegressionTests: XCTestCase {
         let canvas = renderShape(
             .fillRect(
                 rect: Rect(x: 8, y: 8, width: 48, height: 24),
-                color: Color(hex: 0x1F6FEB),
+                color: Theme.ciderAmber,
                 cornerRadius: 12
             )
         )
@@ -96,7 +96,7 @@ final class VisualRegressionTests: XCTestCase {
         let canvas = renderShape(
             .fillRect(
                 rect: Rect(x: 8, y: 12, width: 48, height: 16),
-                color: Color(hex: 0x1F6FEB),
+                color: Theme.ciderAmber,
                 cornerRadius: 999
             )
         )
@@ -257,7 +257,7 @@ final class VisualRegressionTests: XCTestCase {
     /// entry point the runtime uses.
     private func renderShape(_ command: RenderCommand) -> Canvas {
         Rasterizer.render(
-            RenderTree(backgroundColor: Color(hex: 0xFFFFFF), commands: [command]),
+            RenderTree(backgroundColor: Theme.ciderText, commands: [command]),
             pixelWidth: 64,
             pixelHeight: 40,
             scale: 1,

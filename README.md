@@ -62,6 +62,8 @@ Concretely:
 - **A normalized UI tree** with stable identity, a two-pass layout engine,
   clipping, and a portable software rasterizer with antialiased rounded
   rectangles.
+- **A locked Cider visual direction** applied to Stage 2 defaults: near-black
+  surfaces, warm-white text, and amber accents from `docs/Cider_DESIGN.md`.
 - **A Linux backend** over X11 and FreeType, behind abstract host
   interfaces — pointer, scroll and keyboard input.
 - **A headless backend** used by the test suites, so conformance and visual tests
@@ -69,7 +71,7 @@ Concretely:
 - **A sandboxed, per-app data root** and redacted logging, and CI that
   builds and tests every push on the Ubuntu/Swift matrix
   `docs/06-testing-strategy.md` specifies.
-- **185 tests** across unit, conformance, integration and visual-regression
+- **186 tests** across unit, conformance, integration and visual-regression
   suites.
 
 ## Goals

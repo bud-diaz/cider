@@ -73,11 +73,13 @@ public final class ApplicationRuntime: InvalidationTarget {
 
     // MARK: - Appearance
     //
-    // Hard-coded for the MVP. A theme belongs with the rest of the environment
-    // values in Stage 3; inventing one now would mean designing it against a
-    // single screen.
+    // Hard-coded for the MVP. Kept in sync with CiderUI.Theme.backgroundColor
+    // without importing CiderUI into the runtime layer: CiderRuntime sits below
+    // the compatibility API in the package graph, so brand tokens have to cross
+    // this boundary as plain CiderCore colors for now. A theme belongs with the
+    // rest of the environment values in Stage 3.
 
-    public var backgroundColor = Color(hex: 0xF2F2F7)
+    public var backgroundColor = Color(hex: 0x10100F)
 
     /// Points a single wheel notch scrolls. Chosen to feel like a few lines
     /// of body text per notch; there is no reference platform behaviour to

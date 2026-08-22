@@ -5,8 +5,10 @@
 //  docs/05-implementation-roadmap.md; scattering these constants through the
 //  view types now would make that change touch every file.
 //
-//  The colours are ordinary interface colours picked to be legible. They are not
-//  taken from, and do not attempt to match, any vendor's design system.
+//  The colours below implement the locked Cider brand direction in
+//  docs/Cider_DESIGN.md: dark, technical, low-noise surfaces with Cider Amber as
+//  an accent. They intentionally avoid vendor UI palettes so the runtime feels
+//  like its own developer platform, not an imitation of somebody else's.
 
 import CiderCore
 
@@ -14,17 +16,28 @@ public enum Theme {
     public static let bodyFontSize = 17.0
     public static let titleFontSize = 24.0
 
-    public static let textColor = Color(hex: 0x1C1C1E)
-    public static let backgroundColor = Color(hex: 0xF2F2F7)
+    // MARK: - Locked brand tokens
 
-    public static let accentColor = Color(hex: 0x1F6FEB)
-    public static let accentPressedColor = Color(hex: 0x1A5CC0)
-    public static let accentTextColor = Color(hex: 0xFFFFFF)
+    public static let ciderBlack = Color(hex: 0x10100F)
+    public static let ciderGraphite = Color(hex: 0x1C1C1A)
+    public static let ciderSurface = Color(hex: 0x242421)
+    public static let ciderBorder = Color(hex: 0x34342F)
+    public static let ciderMuted = Color(hex: 0x8F8D86)
+    public static let ciderText = Color(hex: 0xF5F1E8)
+    public static let ciderAmber = Color(hex: 0xE89A2F)
+    public static let ciderAmberBright = Color(hex: 0xFFB547)
 
-    public static let buttonCornerRadius = 12.0
+    public static let textColor = ciderText
+    public static let backgroundColor = ciderBlack
+
+    public static let accentColor = ciderAmber
+    public static let accentPressedColor = ciderAmberBright
+    public static let accentTextColor = ciderBlack
+
+    public static let buttonCornerRadius = 8.0
     public static let buttonPadding = EdgeInsets(horizontal: 24, vertical: 12)
 
-    public static let textFieldBackgroundColor = Color(hex: 0xFFFFFF)
+    public static let textFieldBackgroundColor = ciderSurface
     public static let textFieldCornerRadius = 8.0
     public static let textFieldPadding = EdgeInsets(horizontal: 12, vertical: 8)
 
@@ -33,5 +46,5 @@ public enum Theme {
     /// The dimming behind a presented modal. Partial alpha so the base
     /// content stays visible underneath (dimmed, not hidden) -- straight
     /// alpha, like every other colour here, composited by `Canvas.blend`.
-    public static let modalOverlayColor = Color(hex: 0x000000, alpha: 0.4)
+    public static let modalOverlayColor = Color(hex: 0x000000, alpha: 0.55)
 }

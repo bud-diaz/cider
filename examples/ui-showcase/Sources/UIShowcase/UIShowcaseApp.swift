@@ -67,7 +67,7 @@ struct ItemDetailScreen: CiderView {
     var body: some CiderView {
         VStack(spacing: 24) {
             Text("Item \(index)").font(size: 24, weight: .bold)
-            Image(.solid(Color(hex: 0x1F6FEB), width: 96, height: 96))
+            Image(.solid(Theme.ciderAmber, width: 96, height: 96))
             TextField(note, width: 240)
             Button("Back") { path.wrappedValue.removeLast() }
         }

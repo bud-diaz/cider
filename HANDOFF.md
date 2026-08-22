@@ -43,7 +43,18 @@ hand-picked keyCode values, never a real keyboard. Someone with real
 display access should run `examples/hello-cider`, focus a text field, and
 confirm actual typing works before this is trusted end-to-end.
 
-**Latest continuation (visual baselines):** Stage 2 primitive visual baselines
+**Latest continuation (brand/design Stage 2 update):** Reviewed
+`docs/Cider_DESIGN.md` and `docs/Cider Branding.md`, normalized their markdown
+formatting, added them to the docs index, and applied the locked brand palette to
+Stage 2 defaults. `Theme` now exposes the canonical Cider tokens (`#10100F`,
+`#1C1C1A`, `#242421`, `#34342F`, `#8F8D86`, `#F5F1E8`, `#E89A2F`, `#FFB547`)
+and uses near-black surfaces, warm-white text, and amber controls instead of the
+previous generic light/blue palette. `ApplicationRuntime.backgroundColor` is kept
+in sync as a plain `CiderCore.Color` because `CiderRuntime` cannot import
+`CiderUI`. Added conformance ID `STYLE-BRAND-001` to lock the MVP brand tokens,
+updated the Stage 2 showcase image to amber, and re-recorded visual baselines.
+
+**Previous continuation (visual baselines):** Stage 2 primitive visual baselines
 have now been added and verified in `tests/visual/VisualRegressionTests.swift`:
 `image-screen`, `scroll-view-screen`, `text-field-focused-screen`,
 `list-screen`, `navigation-screen`, and `modal-presented-screen`. Baselines were
@@ -51,9 +62,10 @@ recorded in the Swift 6.0 Noble Docker environment and visually spot-checked via
 a contact sheet (no obvious blank/garbled renders). Verification run:
 `swift test --filter CiderVisualTests` passed 12/12. CI-equivalent root
 `swift build`/`swift test` passed for debug and release in the same container
-(185 tests in each configuration). Example app builds also passed for
-`examples/hello-cider` and `examples/ui-showcase` in debug and release when the
-repo was mounted at `/home/bud/cider` (matching the normal checkout basename;
+(186 tests in each configuration after the brand-token conformance case was
+added). Example app builds also passed for `examples/hello-cider` and
+`examples/ui-showcase` in debug and release when the repo was mounted at
+`/home/bud/cider` (matching the normal checkout basename;
 mounting at `/workspace` makes SwiftPM identify the path dependency as
 `workspace`, which breaks examples that name package `Cider`).
 
@@ -599,3 +611,4 @@ Implemented by this plan:
 - `UI-LIST-001` (B6)
 - `NAV-PUSH-001`, `NAV-POP-001` (B7)
 - `UI-MODAL-001` (B8)
+- `STYLE-BRAND-001` (brand/design Stage 2 update)
