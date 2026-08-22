@@ -1,0 +1,53 @@
+name: CI
+
+# docs/06-testing-strategy.md defines the CI matrix as:
+#   Ubuntu supported LTS x Debug/Release runtime x Swift supported version(s)
+# README.md documents the same apt packages and Xvfb setup used here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Swift ${{ matrix.swift }} / ${{ matrix.configuration }}
+    runs-on: ubuntu-24.04
+    container: swift:${{ matrix.swift }}-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        swift: ["6.0"]
+        configuration: [debug, release]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libx11-dev libfreetype-dev libfontconfig-dev \
+            xvfb
+
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -screen 0 1280x1024x24 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
+      - name: cider doctor prerequisites
+        run: |
+          echo "Swift: $(swift --version)"
+          pkg-config --modversion x11 freetype2 fontconfig
+
+      - name: Build (${{ matrix.configuration }})
+        run: swift build --configuration ${{ matrix.configuration }}
+
+      - name: Test (${{ matrix.configuration }})
+        run: swift test --configuration ${{ matrix.configuration }}

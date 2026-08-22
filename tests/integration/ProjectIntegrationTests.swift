@@ -114,6 +114,36 @@ final class ProjectIntegrationTests: XCTestCase {
                        "overrides must not silently widen permissions")
     }
 
+    // MARK: - Sandbox
+
+    /// The whole chain `cider run` exercises: prepare the sandbox root, put it
+    /// in the descriptor, and the application sees it on its `RuntimeContext`.
+    func testTheSandboxRootPreparedByRunReachesTheApplication() throws {
+        let project = try ProjectLocator.locate(from: exampleRoot)
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cider-sandbox-integration-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        let root = try SandboxPathResolver.prepare(
+            for: project.manifest.appID,
+            environment: ["XDG_DATA_HOME": base.path]
+        )
+        let descriptor = project.manifest.launchDescriptor(sandboxDataRoot: root.path)
+
+        let spy = ContextSpy()
+        let runtime = try ApplicationRuntime(
+            descriptor: descriptor,
+            application: spy,
+            backend: TestingHostBackend(),
+            logSink: MemoryLogSink()
+        )
+        try runtime.launch()
+
+        let sandbox = try XCTUnwrap(spy.context?.sandbox)
+        XCTAssertEqual(sandbox.root, root.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sandbox.documents))
+    }
+
     // MARK: - End to end, headless
 
     /// The whole chain: the real manifest configures a runtime, the reference
@@ -182,6 +212,26 @@ final class ProjectIntegrationTests: XCTestCase {
         XCTAssertEqual(node.hitRegions.count, 1)
         XCTAssertNotNil(runtime.currentLayout)
     }
+}
+
+/// Captures the `RuntimeContext` a launch hands the application, so a test
+/// can inspect what the runtime actually passed down.
+final class ContextSpy: RuntimeApplication {
+    private(set) var context: RuntimeContext?
+
+    func didLaunch(context: RuntimeContext) {
+        self.context = context
+    }
+
+    func makeScene() -> ApplicationScene {
+        Lowering.scene(from: TextOnlySpyApp().body)
+    }
+
+    func willTerminate() {}
+}
+
+private struct TextOnlySpyApp: CiderApp {
+    var body: some CiderView { Text("spy") }
 }
 
 /// A copy of the reference application's view code.

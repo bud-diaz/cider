@@ -257,7 +257,9 @@ This is Stage 0. The list is long and honest:
   incorrectly.
 - **Services**: no networking, storage, timers or clipboard. The manifest's
   permissions are parsed and carried, and nothing enforces them yet because
-  nothing uses them.
+  nothing uses them. Each application does get an isolated, per-app data root
+  on disk (`cider run` creates it before launch), but nothing reads or writes
+  into it until storage lands in Stage 3.
 - **Lifecycle**: launch, foreground and termination. Backgrounding is modelled in
   the type but has no transitions into it.
 - **Rendering**: full redraw on every change, CPU only. No animation, no dirty
@@ -275,7 +277,7 @@ Full detail in
 | Stage | Goal | State |
 | --- | --- | --- |
 | 0 | Prove the architecture end to end | **done** |
-| 1 | Runtime skeleton: CLI, manifest, lifecycle, profiles, logging, sandbox, CI | in progress |
+| 1 | Runtime skeleton: CLI, manifest, lifecycle, profiles, logging, sandbox, CI | **done** |
 | 2 | UI MVP: images, scrolling, text input, lists, navigation, modals | next |
 | 3 | Services: HTTP, preferences, storage, timers, clipboard | |
 | 4 | Developer experience: compatibility scanner, inspector, hot loop | |

@@ -16,6 +16,13 @@ public final class RuntimeContext {
     /// no service uses them yet, since networking and storage are Stage 3.
     public let permissions: AppPermissions
 
+    /// This application's isolated data area, prepared by `cider run` before
+    /// launch. `nil` when the binary was started without going through the
+    /// CLI, in which case no sandbox root was prepared. Nothing reads from or
+    /// writes into it yet -- storage is Stage 3 -- but the isolation itself
+    /// exists now, per docs/03-technical-architecture.md section 8.
+    public let sandbox: SandboxPaths?
+
     /// Identity from the manifest.
     public let appID: String
     public let appName: String
@@ -31,6 +38,7 @@ public final class RuntimeContext {
     init(
         deviceProfile: DeviceProfile,
         permissions: AppPermissions,
+        sandbox: SandboxPaths?,
         appID: String,
         appName: String,
         log: Logger,
@@ -38,6 +46,7 @@ public final class RuntimeContext {
     ) {
         self.deviceProfile = deviceProfile
         self.permissions = permissions
+        self.sandbox = sandbox
         self.appID = appID
         self.appName = appName
         self.log = log

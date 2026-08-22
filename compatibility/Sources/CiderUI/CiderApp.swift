@@ -44,7 +44,7 @@ public extension CiderApp {
     /// developer gets the four-part message described in
     /// docs/02-product-requirements.md FR-007 rather than an exit code.
     static func main() {
-        let sink = StandardOutputLogSink()
+        let sink = RedactingLogSink(wrapping: StandardOutputLogSink())
 
         do {
             let descriptor = try LaunchEnvironment.resolveDescriptor()

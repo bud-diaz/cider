@@ -115,6 +115,7 @@ public final class ApplicationRuntime: InvalidationTarget {
         let context = RuntimeContext(
             deviceProfile: deviceProfile,
             permissions: descriptor.permissions,
+            sandbox: descriptor.sandboxDataRoot.isEmpty ? nil : SandboxPaths(root: descriptor.sandboxDataRoot),
             appID: descriptor.appID,
             appName: descriptor.appName,
             // Same sink, different channel: developer output interleaves with
