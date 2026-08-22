@@ -17,6 +17,7 @@
 //    UI-IMAGE-001      Image lowers to an ImageNode and draws at its intrinsic size
 //    UI-SCROLL-001     ScrollView clips its content and scrolling moves it, clamped
 //    UI-TEXTFIELD-001  TextField gains focus on tap and edits its bound state
+//    UI-LIST-001       List's rows keep source order and scroll like a ScrollView
 
 import XCTest
 
@@ -741,5 +742,71 @@ final class ConformanceTests: XCTestCase {
         try harness.deliver([.keyDown(keyCode: 0xFF52)])
 
         XCTAssertEqual(harness.backend.presentedFrames.count, framesBefore)
+    }
+
+    // MARK: - UI-LIST-001
+
+    /// UI-LIST-001: a `List` lowers to a ScrollViewNode wrapping a VStack of
+    /// its rows -- there is no dedicated node kind, this pairing *is* the
+    /// implementation.
+    func testUI_LIST_001_listLowersToAScrollViewWrappingItsRows() throws {
+        struct App: CiderApp {
+            var body: some CiderView {
+                List(width: 100, height: 50) {
+                    Text("a")
+                    Text("b")
+                    Text("c")
+                }
+            }
+        }
+
+        let scene = Lowering.scene(from: App().body)
+        guard case .scrollView(let scroll) = scene.root else {
+            return XCTFail("expected a ScrollViewNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(scroll.viewportSize, Size(width: 100, height: 50))
+
+        guard case .vstack(let rows) = scroll.content else {
+            return XCTFail("expected the list's content to be a VStack of rows")
+        }
+        XCTAssertEqual(rows.children.map(\.kindName), ["TextNode", "TextNode", "TextNode"])
+    }
+
+    /// UI-LIST-001: rows keep source order, and each publishes its own hit
+    /// region -- the same structural, index-based identity every other
+    /// container already uses.
+    func testUI_LIST_001_rowsKeepSourceOrder() throws {
+        let harness = try ConformanceHarness(ListTestApp())
+        try harness.launch()
+
+        XCTAssertEqual(harness.runtime.currentRenderTree?.hitRegions.count, 10, "one hit region per row's button")
+        let titles = harness.drawnStrings().filter { $0.hasPrefix("Row ") }
+        XCTAssertEqual(titles, (0..<10).map { "Row \($0)" })
+    }
+
+    /// UI-LIST-001: a list scrolls exactly like the ScrollView it's built
+    /// from -- a row far down the list, initially clipped out entirely,
+    /// becomes tappable once scrolled into view, and firing its action is
+    /// visible on the next frame.
+    func testUI_LIST_001_aRowFarDownTheListBecomesTappableOnceScrolledIntoView() throws {
+        let harness = try ConformanceHarness(ListTestApp())
+        try harness.launch()
+
+        let viewport = try XCTUnwrap(harness.runtime.currentRenderTree?.scrollRegions.first)
+
+        // Row 9 sits at content y 324...360, the trailing status row at
+        // 360...372, and the 30pt viewport clamps at content end (372 - 30 =
+        // 342): far enough that row 9 starts entirely out of view.
+        for _ in 0..<10 {
+            try harness.deliver([
+                .scroll(location: Point(x: viewport.frame.midX, y: viewport.frame.midY), deltaX: 0, deltaY: 1),
+            ])
+        }
+
+        let tree = try XCTUnwrap(harness.runtime.currentRenderTree)
+        let visibleRow = try XCTUnwrap(tree.hitRegions.last, "row 9 should be the only button left in view")
+        try harness.tap(at: Point(x: visibleRow.frame.midX, y: visibleRow.frame.midY))
+
+        XCTAssertTrue(harness.drawnStrings().contains("Last: 9"), "tapping the visible row must fire row 9's action")
     }
 }

@@ -136,6 +136,22 @@ struct TextFieldTestApp: CiderApp {
     }
 }
 
+/// Ten button rows plus a trailing status row, in a viewport short enough
+/// that most rows start out scrolled out of view -- for the list
+/// conformance test.
+struct ListTestApp: CiderApp {
+    @CiderState var lastTapped = -1
+
+    var body: some CiderView {
+        List(width: 100, height: 30) {
+            for index in 0..<10 {
+                Button("Row \(index)") { lastTapped = index }.font(size: 10)
+            }
+            Text("Last: \(lastTapped)").font(size: 10)
+        }
+    }
+}
+
 /// A short viewport over content taller than it, with a button positioned so
 /// it starts out entirely scrolled out of view -- for the scroll conformance
 /// test, including whether hit-testing respects the clip.

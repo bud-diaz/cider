@@ -10,15 +10,18 @@ session, whether or not the milestone finished.
 ## Status
 
 Part A (Stage 1 close-out), **B1** (Image), **B2** (layout/rendering
-foundations), **B3** (host input plumbing), **B4** (ScrollView) and
-**B5** (TextField) are done. Next up: **B6** (List), which reuses B4's
-scroll machinery.
+foundations), **B3** (host input plumbing), **B4** (ScrollView), **B5**
+(TextField) and **B6** (List) are done. Next up: **B7** (navigation
+stack), which needs a real replacement for `layoutCentered`'s
+placeholder root-layout behavior -- read that function's doc comment in
+`ui/Sources/CiderUITree/Layout.swift` before starting; B4 and B5 both
+explicitly deferred "fill parent" layout to this milestone.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
 CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3
-(8676a50) and B4 (52590ca). B5 has been pushed for the same verification;
-check its result before starting B6.
+(8676a50), B4 (52590ca) and B5 (a91f40f). B6 has been pushed for the same
+verification; check its result before starting B7.
 
 **Caveat carried from B3, still true, now more relevant**: CI's `swift
 build`/`swift test` compile the X11 C shim but never execute it — every
@@ -262,6 +265,34 @@ confirm actual typing works before this is trusted end-to-end.
     `ConformanceHarness.swift`; layout measure/place cases and a
     `UINode.find(_:)` case in `tests/unit/LayoutTests.swift`.
 
+- **B6** — List, and it needed *no* UINode/Layout/RenderTree/Inspector
+  changes at all, a deliberate deviation from the ADR-0003
+  five-touchpoint pattern the plan assumed every node kind would need:
+  - `List` (`compatibility/Sources/CiderUI/List.swift`) lowers directly
+    to `.scrollView(ScrollViewNode(content: .vstack(rows)))` — a list
+    *is* a ScrollView whose content is always a VStack of rows, so
+    reusing that machinery outright (rather than a parallel node kind
+    with its own clip/scroll/hit-testing logic to keep in sync) is the
+    whole implementation. Same "always wrap, `/rows` suffix can't
+    collide with numeric row identities" technique `ScrollView` uses
+    for its own synthetic wrapper.
+  - Row identity is the existing structural index scheme (`id/0`,
+    `id/1`, ...) — matches the plan's "index-based identity" and ADR
+    0003's explicit note that key-based identity is deferred until
+    lists exist; still true now, not addressed here. No virtualization
+    either, also per plan: a long list measures and places every row on
+    every rebuild, same as a VStack today.
+  - A row that wants tap behavior is just a `Button` as that row —
+    List adds no new interaction concept, since B4 and B5 already gave
+    clip-aware hit-testing and scrolling to whatever's inside a
+    ScrollView's content, for free.
+  - Tests: `UI-LIST-001` (3 cases: lowering shape, row order/count,
+    scroll-then-tap-the-newly-visible-row reusing B4's clip-aware
+    hit-testing) in `tests/conformance/ConformanceTests.swift` +
+    `ListTestApp` in `ConformanceHarness.swift`. No unit tests needed
+    beyond the conformance suite, since there's no new layout/render
+    code path to test in isolation.
+
 ## Deviations
 
 - The plan suggested putting sandbox path resolution "alongside
@@ -346,8 +377,8 @@ Implemented by this plan:
 - `UI-IMAGE-001` (B1)
 - `UI-SCROLL-001` (B4)
 - `UI-TEXTFIELD-001` (B5)
+- `UI-LIST-001` (B6)
 
 Reserved, not yet implemented:
-- `UI-LIST-001` (B6)
 - `NAV-PUSH-001`, `NAV-POP-001` (B7)
 - `UI-MODAL-001` (B8)
