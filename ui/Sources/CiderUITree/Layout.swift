@@ -66,6 +66,9 @@ public enum LayoutEngine {
                 }
             }
             return Size(width: width, height: height)
+
+        case .image(let image):
+            return Size(width: Double(image.source.width), height: Double(image.source.height))
         }
     }
 
@@ -98,7 +101,7 @@ public enum LayoutEngine {
         let frame = Rect(origin: origin, size: size)
 
         switch node {
-        case .text, .button:
+        case .text, .button, .image:
             return LayoutBox(id: node.id, frame: frame)
 
         case .vstack(let stack):

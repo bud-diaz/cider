@@ -34,6 +34,8 @@ public enum Inspector {
             line += "  \(quoted(button.title))\(button.isEnabled ? "" : "  disabled")"
         case .vstack(let stack):
             line += "  spacing=\(format(stack.spacing)) alignment=\(stack.alignment.rawValue)"
+        case .image(let image):
+            line += "  \(image.source.width)x\(image.source.height)"
         }
 
         var lines = [line]
@@ -60,6 +62,8 @@ public enum Inspector {
                     "\(index)  text \(quoted(content)) baseline=\(format(origin)) "
                         + "size=\(format(font.size)) weight=\(font.weight.rawValue) \(format(color))"
                 )
+            case .image(let rect, let source):
+                lines.append("\(index)  image \(format(rect)) \(source.width)x\(source.height)")
             }
         }
 

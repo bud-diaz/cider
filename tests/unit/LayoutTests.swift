@@ -41,6 +41,15 @@ final class LayoutTests: XCTestCase {
         )
     }
 
+    private func image(_ id: String, width: Int, height: Int) -> UINode {
+        .image(
+            ImageNode(
+                id: NodeID(path: id),
+                source: .solid(.black, width: width, height: height)
+            )
+        )
+    }
+
     // MARK: - Measurement
 
     func testTextMeasuresToAdvanceTimesLineHeight() {
@@ -88,6 +97,11 @@ final class LayoutTests: XCTestCase {
     func testEmptyVStackIsZeroSized() {
         let empty = UINode.vstack(VStackNode(id: .root, spacing: 8, alignment: .center, children: []))
         XCTAssertEqual(LayoutEngine.measure(empty, context: context), .zero)
+    }
+
+    func testImageMeasuresToItsSourcePixelDimensions() {
+        let size = LayoutEngine.measure(image("i", width: 40, height: 30), context: context)
+        XCTAssertEqual(size, Size(width: 40, height: 30))
     }
 
     // MARK: - Placement
@@ -145,6 +159,14 @@ final class LayoutTests: XCTestCase {
 
         XCTAssertEqual(box.frame.midX, bounds.midX, accuracy: 1e-9)
         XCTAssertEqual(box.frame.midY, bounds.midY, accuracy: 1e-9)
+    }
+
+    func testImagePlacesAtItsMeasuredFrame() {
+        let node = image("i", width: 40, height: 30)
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 40, height: 30), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 40, height: 30))
+        XCTAssertTrue(box.children.isEmpty)
     }
 
     func testBoxLookupFindsNestedNodes() {

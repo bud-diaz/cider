@@ -119,3 +119,10 @@ struct TextOnlyApp: CiderApp {
         Text("Hello")
     }
 }
+
+/// A single image, for the image conformance test.
+struct ImageOnlyApp: CiderApp {
+    var body: some CiderView {
+        Image(.solid(Color(hex: 0xFF00FF), width: 12, height: 8))
+    }
+}

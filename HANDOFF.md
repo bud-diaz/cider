@@ -9,15 +9,19 @@ session, whether or not the milestone finished.
 
 ## Status
 
-Part A (Stage 1 close-out) is done. Next up: **B1** (Image node), then
-B2 → B9 in the order given in the plan. B2 (bounded layout + clipping)
-and B3 (host keyboard/scroll events) are prerequisites for B4–B6 — do not
-start those out of order.
+Part A (Stage 1 close-out) and **B1** (Image node) are done. Next up:
+**B2** (layout & rendering foundations: bounded/proposed-size measurement
++ clipping), then B3 → B9 in the order given in the plan. B2 and B3 (host
+keyboard/scroll events) are prerequisites for B4–B6 — do not start those
+out of order.
 
 Note: `swift` is not installed in the container this work was done in, so
-none of this has been build/test-verified locally. CI (A1) is the first
-real verification it will get — check its result before trusting any of
-Part A or starting B1 on top of it.
+none of this has been build/test-verified locally beyond what CI reports.
+CI on Part A's commit (159f987) came back green (`swift:6.0-noble`,
+debug+release, build+test all passed) — that's real signal the toolchain
+setup and Part A's code are sound. B1 has been pushed for the same CI
+verification but its result wasn't back yet as of this note; check it
+before building B2 on top.
 
 ## Done
 
@@ -52,6 +56,34 @@ Part A or starting B1 on top of it.
     (`testTheSandboxRootPreparedByRunReachesTheApplication`).
   - `README.md` roadmap table and "Current limitations" updated to match.
 
+- **B1** — Image node, all five ADR-0003 touchpoints plus the view type:
+  - `ImageSource` (`runtime/Sources/CiderCore/ImageSource.swift`): raw
+    RGBA8 pixels (width/height/bytes), plus a `.solid(_:width:height:)`
+    helper. No decoder exists — this is deliberately the whole story for
+    B1, per the plan.
+  - `ImageNode` + `UINode.image` case
+    (`ui/Sources/CiderUITree/UINode.swift`).
+  - `Layout.swift`: `.image` measures to `source.width`/`source.height`
+    (points == pixels at scale 1); places like `.text`/`.button` (no
+    children, no special sizing logic needed since it's already
+    intrinsically sized).
+  - `RenderCommand.image(rect:source:)` + builder case
+    (`ui/Sources/CiderUITree/RenderTree.swift`).
+  - `Rasterizer.draw(image:rect:scale:into:)`
+    (`ui/Sources/CiderUITree/Rasterizer.swift`): nearest-neighbour sampling
+    from source pixels into canvas device pixels, alpha-composited through
+    the existing `Canvas.blend`.
+  - `Inspector.swift`: both `describe(node:)` and `describe(renderTree:)`
+    switches gained `.image` cases.
+  - `Image` view (`compatibility/Sources/CiderUI/Image.swift`): leaf
+    `CiderView`, same shape as `Text`.
+  - Tests: `UI-IMAGE-001` in `tests/conformance/ConformanceTests.swift`
+    (+ `ImageOnlyApp` in `ConformanceHarness.swift`), unit tests in
+    `tests/unit/ImageSourceTests.swift` and new cases in
+    `tests/unit/LayoutTests.swift`. **No visual-regression baseline yet**
+    — see Open issues; a `VisualRegressionTests.swift` case was written
+    and then deliberately reverted rather than committed, see Deviations.
+
 ## Deviations
 
 - The plan suggested putting sandbox path resolution "alongside
@@ -73,12 +105,28 @@ Part A or starting B1 on top of it.
   exist. This was already true before A2 and remains true; Stage 3's
   services are what will consult `RuntimeContext.permissions`.
 
+- B1's plan item called for "visual regression baseline + conformance
+  test `UI-IMAGE-001`". Only the conformance test landed. Recording a
+  baseline requires actually running the renderer (`CIDER_UPDATE_BASELINES=1
+  swift test`), which needs a Swift toolchain this session did not have;
+  committing the test without running that step would mean committing a
+  guessed `.ppm` file or a test that fails on every future CI run for an
+  unrelated reason. Left for a session with a real toolchain instead of
+  guessing. See Open issues.
+
 ## Open issues
 
-- CI has not actually run yet (no push has happened from this session at
-  time of writing) — first real signal on whether `swift:6.0-noble` is a
-  valid tag and whether the workflow is otherwise correct comes from its
-  first run.
+- **B1 (Image) has no visual-regression baseline.** A candidate test
+  (`testImageScreen`, exercising `Rasterizer.draw(image:...)`'s
+  nearest-neighbour sampler through a real scene) was written, then
+  reverted before committing: `assertMatchesBaseline` fails hard with no
+  baseline file present, and I had no Swift toolchain in this session to
+  run `CIDER_UPDATE_BASELINES=1 swift test --filter CiderVisualTests` and
+  record one — committing the test without its baseline would have
+  turned CI red for every push after it, for a reason unrelated to
+  whatever that push actually changed. Whoever has a real toolchain next
+  should re-add a case like it, record the baseline, eyeball the `.ppm`,
+  and commit both together in one change.
 
 ## Conformance IDs assigned so far
 

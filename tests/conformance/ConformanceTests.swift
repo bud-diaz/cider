@@ -14,6 +14,7 @@
 //    UI-BUTTON-001     Button draws a background, a label and a hit region
 //    INPUT-POINTER-001 a pointer becomes a touch, and a touch hit-tests
 //    STATE-UPDATE-001  a button action changes state and the next frame shows it
+//    UI-IMAGE-001      Image lowers to an ImageNode and draws at its intrinsic size
 
 import XCTest
 
@@ -449,5 +450,51 @@ final class ConformanceTests: XCTestCase {
         // prints all of them on failure and tells you nothing.
         let changed = zip(before.pixels, after.pixels).count { $0 != $1 }
         XCTAssertGreaterThan(changed, 0, "the counter text must have redrawn")
+    }
+
+    // MARK: - UI-IMAGE-001
+
+    /// UI-IMAGE-001: an `Image` view becomes one ImageNode carrying its pixels.
+    func testUI_IMAGE_001_imageLowersToAnImageNode() throws {
+        let scene = Lowering.scene(from: ImageOnlyApp().body)
+
+        guard case .image(let node) = scene.root else {
+            return XCTFail("expected an ImageNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(node.source.width, 12)
+        XCTAssertEqual(node.source.height, 8)
+        XCTAssertTrue(scene.actions.isEmpty, "an image is not interactive")
+    }
+
+    /// UI-IMAGE-001: an image is sized to its source's pixel dimensions, with
+    /// no separate resizing modifier in the MVP.
+    func testUI_IMAGE_001_imageIsSizedToItsIntrinsicDimensions() throws {
+        let harness = try ConformanceHarness(ImageOnlyApp())
+        try harness.launch()
+
+        let box = try XCTUnwrap(harness.runtime.currentLayout)
+        XCTAssertEqual(box.frame.width, 12, accuracy: 1e-9)
+        XCTAssertEqual(box.frame.height, 8, accuracy: 1e-9)
+    }
+
+    /// UI-IMAGE-001: an image draws as a single `.image` render command
+    /// carrying its placed frame and its source pixels, and publishes no hit
+    /// region -- an image is not interactive in the MVP.
+    func testUI_IMAGE_001_imageDrawsAsARenderCommand() throws {
+        let harness = try ConformanceHarness(ImageOnlyApp())
+        try harness.launch()
+
+        let tree = try XCTUnwrap(harness.runtime.currentRenderTree)
+        XCTAssertEqual(tree.commands.count, 1)
+        XCTAssertTrue(tree.hitRegions.isEmpty)
+
+        guard case .image(let rect, let source) = tree.commands[0] else {
+            return XCTFail("expected an image command")
+        }
+
+        let box = try XCTUnwrap(harness.runtime.currentLayout)
+        XCTAssertEqual(rect, box.frame)
+        XCTAssertEqual(source.width, 12)
+        XCTAssertEqual(source.height, 8)
     }
 }

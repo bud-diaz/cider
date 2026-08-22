@@ -46,6 +46,9 @@ public enum Rasterizer {
                     textEngine: textEngine,
                     into: &canvas
                 )
+
+            case .image(let rect, let source):
+                draw(image: source, rect: rect, scale: scale, into: &canvas)
             }
         }
 
@@ -190,6 +193,57 @@ public enum Rasterizer {
                 guard coverage > 0 else { continue }
 
                 canvas.blend(x: x, y: y, color: color, coverage: Double(coverage) / 255.0)
+            }
+        }
+    }
+
+    // MARK: - Images
+
+    /// Nearest-neighbour samples `source` across `rect`.
+    ///
+    /// The rest of the renderer scales analytically (rounded rects) or by
+    /// re-shaping at the target size (text): there is no resampling filter to
+    /// share. Nearest-neighbour is the simplest correct choice for a bitmap,
+    /// and -- being a closed-form function of the geometry -- deterministic
+    /// across hosts, matching every other command here.
+    static func draw(image source: ImageSource, rect: Rect, scale: Double, into canvas: inout Canvas) {
+        guard source.width > 0, source.height > 0, rect.width > 0, rect.height > 0 else { return }
+
+        let originX = rect.minX * scale
+        let originY = rect.minY * scale
+        let deviceWidth = rect.width * scale
+        let deviceHeight = rect.height * scale
+
+        let minX = max(0, Int(originX.rounded(.down)))
+        let minY = max(0, Int(originY.rounded(.down)))
+        let maxX = min(canvas.width - 1, Int((originX + deviceWidth).rounded(.up)) - 1)
+        let maxY = min(canvas.height - 1, Int((originY + deviceHeight).rounded(.up)) - 1)
+        guard minX <= maxX, minY <= maxY else { return }
+
+        for y in minY...maxY {
+            let v = (Double(y) + 0.5 - originY) / deviceHeight
+            guard v >= 0, v < 1 else { continue }
+            let sourceY = min(source.height - 1, Int(v * Double(source.height)))
+
+            for x in minX...maxX {
+                let u = (Double(x) + 0.5 - originX) / deviceWidth
+                guard u >= 0, u < 1 else { continue }
+                let sourceX = min(source.width - 1, Int(u * Double(source.width)))
+
+                let pixelIndex = (sourceY * source.width + sourceX) * 4
+                let alpha = Double(source.pixels[pixelIndex + 3]) / 255.0
+                guard alpha > 0 else { continue }
+
+                canvas.blend(
+                    x: x,
+                    y: y,
+                    color: Color(
+                        red: Double(source.pixels[pixelIndex]) / 255.0,
+                        green: Double(source.pixels[pixelIndex + 1]) / 255.0,
+                        blue: Double(source.pixels[pixelIndex + 2]) / 255.0,
+                        alpha: alpha
+                    )
+                )
             }
         }
     }

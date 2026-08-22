@@ -19,6 +19,9 @@ public enum RenderCommand: Equatable, Sendable {
         font: FontRequest,
         color: Color
     )
+
+    /// A bitmap, placed at `rect`.
+    case image(rect: Rect, source: ImageSource)
 }
 
 /// An area that can receive a touch, and the node it belongs to.
@@ -137,6 +140,9 @@ public enum RenderTreeBuilder {
                     into: &tree
                 )
             }
+
+        case .image(let image):
+            tree.commands.append(.image(rect: layout.frame, source: image.source))
         }
     }
 }
