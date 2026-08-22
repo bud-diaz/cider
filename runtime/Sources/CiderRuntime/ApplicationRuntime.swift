@@ -57,6 +57,17 @@ public final class ApplicationRuntime: InvalidationTarget {
     /// The button currently held down, if any.
     private var pressedNode: NodeID?
 
+    /// The node with keyboard focus, if any. Set by tapping a text field;
+    /// cleared by tapping anything else, or by that node vanishing in a
+    /// rebuild -- the same reasoning `pressedNode` already has for touch.
+    private var focusedNode: NodeID?
+
+    /// Current scroll position of every scroll view that has one, keyed by
+    /// identity. A view not in this dictionary is at (0, 0); an entry is
+    /// pruned when its node disappears in a rebuild, the same reasoning as
+    /// `pressedNode`/`focusedNode`.
+    private var scrollOffsets: [NodeID: Point] = [:]
+
     /// Frames presented since launch. Exposed for tests and the inspector.
     public private(set) var frameCount = 0
 
@@ -67,6 +78,11 @@ public final class ApplicationRuntime: InvalidationTarget {
     // single screen.
 
     public var backgroundColor = Color(hex: 0xF2F2F7)
+
+    /// Points a single wheel notch scrolls. Chosen to feel like a few lines
+    /// of body text per notch; there is no reference platform behaviour to
+    /// match yet, the same reasoning as `backgroundColor` above.
+    public var scrollNotchDistance = 40.0
 
     public init(
         descriptor: LaunchDescriptor,
@@ -115,6 +131,7 @@ public final class ApplicationRuntime: InvalidationTarget {
         let context = RuntimeContext(
             deviceProfile: deviceProfile,
             permissions: descriptor.permissions,
+            sandbox: descriptor.sandboxDataRoot.isEmpty ? nil : SandboxPaths(root: descriptor.sandboxDataRoot),
             appID: descriptor.appID,
             appName: descriptor.appName,
             // Same sink, different channel: developer output interleaves with
@@ -191,7 +208,64 @@ public final class ApplicationRuntime: InvalidationTarget {
         case .pointerDown, .pointerMove, .pointerUp, .pointerExit:
             guard let touch = translator?.touch(for: event) else { return }
             handle(touch)
+
+        case .scroll(let location, let deltaX, let deltaY):
+            handleScroll(at: location, deltaX: deltaX, deltaY: deltaY)
+
+        case .keyDown(let keyCode):
+            handleKeyDown(keyCode)
+
+        case .keyUp:
+            // Typing only reacts to key-down; a held key's repeat already
+            // arrives as repeated keyDown events from the host, and nothing
+            // in the MVP (no modifier tracking, no key-repeat timing of its
+            // own) needs to know when a key comes back up.
+            break
+
+        case .textInput(let text):
+            // No backend produces this yet -- see HostEvent.textInput's doc
+            // comment. When one does, it should carry composed text past
+            // handleKeyDown's ASCII-only keysym mapping below, not alongside
+            // it: firing both for the same keystroke would double-insert.
+            if let focusedNode {
+                log.trace("text input \(text.debugDescription) (focus: \(focusedNode))")
+            }
         }
+    }
+
+    /// X11 keysym for Backspace. Named here rather than imported from a
+    /// header: this file has no C dependency, and one raw constant does not
+    /// justify adding one. See docs/07-legal-distribution-boundaries.md if
+    /// this list ever grows enough to need a real source.
+    private static let backspaceKeyCode = 0xFF08
+
+    /// Turns a raw key into a text edit, for whatever text field has focus.
+    ///
+    /// Scoped to what X11 keysyms make possible without an input method: the
+    /// keysyms for printable ASCII are, by X11's own design, identical to
+    /// their Unicode code points (true for the whole Latin-1 range, 0x20 to
+    /// 0xFF), so basic typing works from `keyDown` alone. Composed text --
+    /// dead keys, IME, anything outside Latin-1 -- needs `Xutf8LookupString`
+    /// in the X11 shim, which does not exist yet (see HostEvent.textInput's
+    /// doc comment); this only ever produces what a keysym in that range
+    /// spells out directly. Editing is append/remove-from-the-end only: no
+    /// cursor movement, no selection.
+    private func handleKeyDown(_ keyCode: Int) {
+        guard let focusedNode, let scene else { return }
+        guard let handler = scene.textInputHandlers[focusedNode] else { return }
+        guard case .textField(let field) = scene.root.find(focusedNode) else { return }
+
+        let newText: String
+        if keyCode == Self.backspaceKeyCode {
+            guard !field.text.isEmpty else { return }
+            newText = String(field.text.dropLast())
+        } else if let scalar = Unicode.Scalar(keyCode), (0x20...0x7E).contains(keyCode) {
+            newText = field.text + String(Character(scalar))
+        } else {
+            return
+        }
+
+        handler(newText)
     }
 
     private var translator: PointerTranslator? {
@@ -220,6 +294,18 @@ public final class ApplicationRuntime: InvalidationTarget {
             }
             if let hit {
                 log.trace("touch began on \(hit)")
+            }
+
+            // Focus follows the tap, the same as most direct-manipulation UI:
+            // landing on a text field gives it focus, landing on anything
+            // else -- another control, empty space -- takes focus away.
+            // `scene` (not `pressedNode`/`hitTest`) is what says whether a
+            // hit id is actually a text field, since nothing about a
+            // `NodeID` says what kind of node it names.
+            let newFocus = hit.flatMap { scene?.textInputHandlers[$0] != nil ? $0 : nil }
+            if newFocus != focusedNode {
+                focusedNode = newFocus
+                needsRender = true
             }
 
         case .moved:
@@ -262,6 +348,42 @@ public final class ApplicationRuntime: InvalidationTarget {
         }
     }
 
+    /// Routes a wheel notch to whichever scroll view is under it, and clamps
+    /// the result so content can't be scrolled past its own edges.
+    ///
+    /// Clamping needs both the viewport's size and its content's natural
+    /// size. Both are sitting in `lastLayout` already -- the scroll view's
+    /// own placed frame is the viewport, and its one child's placed frame
+    /// (computed at the content's unbounded intrinsic size; see
+    /// `LayoutEngine.place`'s `.scrollView` case) is the content -- so this
+    /// reads the existing layout tree rather than asking for a fresh one.
+    private func handleScroll(at location: Point, deltaX: Double, deltaY: Double) {
+        guard let renderTree, let lastLayout, let translator else { return }
+
+        let point = translator.convert(location)
+        guard let target = renderTree.scrollTarget(at: point) else { return }
+        guard let viewportBox = lastLayout.box(for: target), let contentBox = viewportBox.children.first else {
+            return
+        }
+
+        let maxOffsetX = max(0, contentBox.frame.width - viewportBox.frame.width)
+        let maxOffsetY = max(0, contentBox.frame.height - viewportBox.frame.height)
+
+        let current = scrollOffsets[target] ?? .zero
+        let proposed = Point(
+            x: current.x + deltaX * scrollNotchDistance,
+            y: current.y + deltaY * scrollNotchDistance
+        )
+        let clamped = Point(
+            x: min(max(0, proposed.x), maxOffsetX),
+            y: min(max(0, proposed.y), maxOffsetY)
+        )
+
+        guard clamped != current else { return }
+        scrollOffsets[target] = clamped
+        needsRender = true
+    }
+
     // MARK: - Invalidation and rendering
 
     func setNeedsRebuild() {
@@ -297,6 +419,21 @@ public final class ApplicationRuntime: InvalidationTarget {
                 pressedNode = nil
             }
 
+            // Same reasoning for focus: a focused node that vanished in the
+            // rebuild must not keep absorbing keyboard events nothing on
+            // screen can show the result of.
+            if let focused = focusedNode, layout.box(for: focused) == nil {
+                focusedNode = nil
+            }
+
+            // And for scroll position: a scroll view that vanished must not
+            // leave a stale offset sitting around forever, and if a scroll
+            // view with the same identity reappears (same structural path),
+            // this correctly does nothing -- box(for:) finds it and the old
+            // offset is exactly what a developer would expect to survive an
+            // unrelated state change.
+            scrollOffsets = scrollOffsets.filter { id, _ in layout.box(for: id) != nil }
+
             needsRebuild = false
 
             if descriptor.inspectorEnabled {
@@ -311,6 +448,8 @@ public final class ApplicationRuntime: InvalidationTarget {
             layout: layout,
             backgroundColor: backgroundColor,
             pressedNode: pressedNode,
+            focusedNode: focusedNode,
+            scrollOffsets: scrollOffsets,
             context: context
         )
         self.renderTree = tree
@@ -340,6 +479,16 @@ public final class ApplicationRuntime: InvalidationTarget {
 
     /// The node currently held down, if any.
     public var currentPressedNode: NodeID? { pressedNode }
+
+    /// The node with keyboard focus, if any -- the text field last tapped,
+    /// unless focus has since moved or been cleared.
+    public var currentFocusedNode: NodeID? { focusedNode }
+
+    /// The current scroll position of the scroll view identified by `id`,
+    /// or `.zero` if it has never been scrolled (or isn't a scroll view).
+    public func currentScrollOffset(for id: NodeID) -> Point {
+        scrollOffsets[id] ?? .zero
+    }
 
     // MARK: - Plumbing
 

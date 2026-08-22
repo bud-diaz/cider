@@ -19,6 +19,17 @@ public enum RenderCommand: Equatable, Sendable {
         font: FontRequest,
         color: Color
     )
+
+    /// A bitmap, placed at `rect`.
+    case image(rect: Rect, source: ImageSource)
+
+    /// Intersects `rect` with whatever is currently clipped and makes the
+    /// result active for every command up to the matching `popClip`. Emitted
+    /// around a scroll view's content, and later around a modal's overlay.
+    case pushClip(rect: Rect)
+
+    /// Restores the clip that was active before the matching `pushClip`.
+    case popClip
 }
 
 /// An area that can receive a touch, and the node it belongs to.
@@ -40,14 +51,23 @@ public struct RenderTree: Equatable, Sendable {
     public var commands: [RenderCommand]
     public var hitRegions: [HitRegion]
 
+    /// Scroll viewports, at their on-screen frame (not their content's,
+    /// which can be larger). A separate list from `hitRegions` because a
+    /// scroll notch and a tap answer different questions: a tap wants the
+    /// topmost *interactive* thing under a point, a scroll wants the topmost
+    /// *scrollable* thing under a point, and a button is never both.
+    public var scrollRegions: [HitRegion]
+
     public init(
         backgroundColor: Color,
         commands: [RenderCommand] = [],
-        hitRegions: [HitRegion] = []
+        hitRegions: [HitRegion] = [],
+        scrollRegions: [HitRegion] = []
     ) {
         self.backgroundColor = backgroundColor
         self.commands = commands
         self.hitRegions = hitRegions
+        self.scrollRegions = scrollRegions
     }
 
     /// Returns the topmost enabled region containing `point`.
@@ -56,6 +76,16 @@ public struct RenderTree: Equatable, Sendable {
     /// the user sees on top is what they hit.
     public func hitTest(_ point: Point) -> NodeID? {
         for region in hitRegions.reversed() where region.isEnabled && region.frame.contains(point) {
+            return region.id
+        }
+        return nil
+    }
+
+    /// Returns the topmost scroll view containing `point`, the same
+    /// reversed-scan reasoning as `hitTest`: a nested scroll view painted
+    /// last is the one closest to the pointer.
+    public func scrollTarget(at point: Point) -> NodeID? {
+        for region in scrollRegions.reversed() where region.isEnabled && region.frame.contains(point) {
             return region.id
         }
         return nil
@@ -70,37 +100,69 @@ public enum RenderTreeBuilder {
         layout: LayoutBox,
         backgroundColor: Color,
         pressedNode: NodeID? = nil,
+        focusedNode: NodeID? = nil,
+        scrollOffsets: [NodeID: Point] = [:],
         context: LayoutContext
     ) -> RenderTree {
         var tree = RenderTree(backgroundColor: backgroundColor)
-        append(node: node, layout: layout, pressedNode: pressedNode, context: context, into: &tree)
+        append(
+            node: node,
+            layout: layout,
+            pressedNode: pressedNode,
+            focusedNode: focusedNode,
+            scrollOffsets: scrollOffsets,
+            offset: .zero,
+            clip: nil,
+            context: context,
+            into: &tree
+        )
         return tree
     }
 
+    /// `offset` accumulates the scroll displacement of every scroll-view
+    /// ancestor, so a frame drawn deep inside one (or several nested ones)
+    /// still lands where the user actually sees it. Layout never sees this --
+    /// it computes each node's *unscrolled* frame once; shifting that frame
+    /// by however much its container is currently scrolled happens here,
+    /// every frame, the same way a button's pressed color is decided here and
+    /// not baked into layout.
+    ///
+    /// `clip` is the intersection of every scroll-view ancestor's viewport,
+    /// or `nil` when nothing has clipped yet. It exists so hit-testing agrees
+    /// with what's actually drawn: `Rasterizer` already refuses to paint a
+    /// pixel outside the active clip via `pushClip`/`popClip`, and a hit
+    /// region that ignored the same clip would make a button scrolled out of
+    /// view still tappable at its old, invisible position.
     private static func append(
         node: UINode,
         layout: LayoutBox,
         pressedNode: NodeID?,
+        focusedNode: NodeID?,
+        scrollOffsets: [NodeID: Point],
+        offset: Point,
+        clip: Rect?,
         context: LayoutContext,
         into tree: inout RenderTree
     ) {
         switch node {
         case .text(let text):
             let metrics = context.textEngine.metrics(for: text.font)
+            let frame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
             tree.commands.append(
                 .text(
                     content: text.text,
-                    baselineOrigin: Point(x: layout.frame.minX, y: layout.frame.minY + metrics.ascent),
+                    baselineOrigin: Point(x: frame.minX, y: frame.minY + metrics.ascent),
                     font: text.font,
                     color: text.color
                 )
             )
 
         case .button(let button):
+            let frame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
             let isPressed = button.isEnabled && pressedNode == button.id
             tree.commands.append(
                 .fillRect(
-                    rect: layout.frame,
+                    rect: frame,
                     color: isPressed ? button.pressedBackgroundColor : button.backgroundColor,
                     cornerRadius: button.cornerRadius
                 )
@@ -111,8 +173,8 @@ public enum RenderTreeBuilder {
             // deliberate.
             let run = context.textEngine.shape(button.title, font: button.font)
             let metrics = run.metrics
-            let textX = layout.frame.minX + (layout.frame.width - run.width) / 2
-            let textY = layout.frame.midY - metrics.lineHeight / 2 + metrics.ascent
+            let textX = frame.minX + (frame.width - run.width) / 2
+            let textY = frame.midY - metrics.lineHeight / 2 + metrics.ascent
 
             tree.commands.append(
                 .text(
@@ -123,9 +185,20 @@ public enum RenderTreeBuilder {
                 )
             )
 
-            tree.hitRegions.append(
-                HitRegion(id: button.id, frame: layout.frame, isEnabled: button.isEnabled)
-            )
+            // Clipped to whatever scroll viewport it's inside, if any, so a
+            // button scrolled fully out of view (or half-clipped at the
+            // viewport's edge) can't be hit outside what's actually visible.
+            let hitFrame: Rect?
+            if let clip {
+                hitFrame = frame.intersection(clip)
+            } else {
+                hitFrame = frame
+            }
+            if let hitFrame {
+                tree.hitRegions.append(
+                    HitRegion(id: button.id, frame: hitFrame, isEnabled: button.isEnabled)
+                )
+            }
 
         case .vstack(let stack):
             for (child, childLayout) in zip(stack.children, layout.children) {
@@ -133,10 +206,175 @@ public enum RenderTreeBuilder {
                     node: child,
                     layout: childLayout,
                     pressedNode: pressedNode,
+                    focusedNode: focusedNode,
+                    scrollOffsets: scrollOffsets,
+                    offset: offset,
+                    clip: clip,
                     context: context,
                     into: &tree
                 )
             }
+
+        case .image(let image):
+            let frame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
+            tree.commands.append(.image(rect: frame, source: image.source))
+
+        case .scrollView(let scroll):
+            let viewportFrame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
+            let effectiveViewport: Rect?
+            if let clip {
+                effectiveViewport = viewportFrame.intersection(clip)
+            } else {
+                effectiveViewport = viewportFrame
+            }
+
+            if let effectiveViewport {
+                tree.scrollRegions.append(HitRegion(id: scroll.id, frame: effectiveViewport, isEnabled: true))
+            }
+
+            // Pushed unconditionally, even when this scroll view is itself
+            // entirely clipped away: pushClip/popClip must stay balanced so a
+            // later command in the tree is never left clipped by a push this
+            // node never matched with a pop.
+            tree.commands.append(.pushClip(rect: viewportFrame))
+            if let effectiveViewport, let contentLayout = layout.children.first {
+                let scrollOffset = scrollOffsets[scroll.id] ?? .zero
+                let contentOffset = Point(x: offset.x - scrollOffset.x, y: offset.y - scrollOffset.y)
+                append(
+                    node: scroll.content,
+                    layout: contentLayout,
+                    pressedNode: pressedNode,
+                    focusedNode: focusedNode,
+                    scrollOffsets: scrollOffsets,
+                    offset: contentOffset,
+                    clip: effectiveViewport,
+                    context: context,
+                    into: &tree
+                )
+            }
+            tree.commands.append(.popClip)
+
+        case .textField(let field):
+            let frame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
+            tree.commands.append(
+                .fillRect(rect: frame, color: field.backgroundColor, cornerRadius: field.cornerRadius)
+            )
+
+            let metrics = context.textEngine.metrics(for: field.font)
+            let textX = frame.minX + field.padding.left
+            let textY = frame.minY + field.padding.top + metrics.ascent
+
+            var textWidth = 0.0
+            if !field.text.isEmpty {
+                let run = context.textEngine.shape(field.text, font: field.font)
+                textWidth = run.width
+                tree.commands.append(
+                    .text(
+                        content: field.text,
+                        baselineOrigin: Point(x: textX, y: textY),
+                        font: field.font,
+                        color: field.textColor
+                    )
+                )
+            }
+
+            // The caret is just a 1pt-wide fill, the same primitive
+            // everything else here already draws with -- no new rasterizer
+            // capability needed for "the field with focus looks editable."
+            if focusedNode == field.id {
+                tree.commands.append(
+                    .fillRect(
+                        rect: Rect(
+                            x: textX + textWidth,
+                            y: frame.minY + field.padding.top,
+                            width: 1,
+                            height: metrics.lineHeight
+                        ),
+                        color: field.textColor,
+                        cornerRadius: 0
+                    )
+                )
+            }
+
+            let hitFrame: Rect?
+            if let clip {
+                hitFrame = frame.intersection(clip)
+            } else {
+                hitFrame = frame
+            }
+            if let hitFrame {
+                tree.hitRegions.append(HitRegion(id: field.id, frame: hitFrame, isEnabled: true))
+            }
+
+        case .navigationStack(let nav):
+            // A transparent passthrough -- it draws nothing and clips
+            // nothing of its own. The active screen already fills the whole
+            // frame (`LayoutEngine.place`'s `.navigationStack` case), so
+            // there's no viewport smaller than the content to clip against,
+            // unlike a scroll view.
+            guard let contentLayout = layout.children.first else { break }
+            append(
+                node: nav.content,
+                layout: contentLayout,
+                pressedNode: pressedNode,
+                focusedNode: focusedNode,
+                scrollOffsets: scrollOffsets,
+                offset: offset,
+                clip: clip,
+                context: context,
+                into: &tree
+            )
+
+        case .modal(let modal):
+            guard let contentLayout = layout.children.first else { break }
+            append(
+                node: modal.content,
+                layout: contentLayout,
+                pressedNode: pressedNode,
+                focusedNode: focusedNode,
+                scrollOffsets: scrollOffsets,
+                offset: offset,
+                clip: clip,
+                context: context,
+                into: &tree
+            )
+
+            // Painter's order does the z-ordering work for free: the
+            // overlay and the presented content are appended after the
+            // base content, so they paint on top of it, the same as a
+            // button's label painting after its background.
+            guard let presented = modal.presented, layout.children.count > 1 else { break }
+            let overlayFrame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
+            let effectiveOverlay: Rect?
+            if let clip {
+                effectiveOverlay = overlayFrame.intersection(clip)
+            } else {
+                effectiveOverlay = overlayFrame
+            }
+
+            guard let effectiveOverlay else { break }
+            tree.commands.append(.fillRect(rect: effectiveOverlay, color: modal.overlayColor, cornerRadius: 0))
+
+            // Swallows taps rather than letting them fall through to the
+            // base content underneath: an enabled hit region with no
+            // registered action still stops `hitTest`'s reversed scan
+            // (later commands paint over earlier ones) from ever reaching
+            // what the overlay visually covers.
+            tree.hitRegions.append(HitRegion(id: modal.id, frame: effectiveOverlay, isEnabled: true))
+
+            tree.commands.append(.pushClip(rect: overlayFrame))
+            append(
+                node: presented,
+                layout: layout.children[1],
+                pressedNode: pressedNode,
+                focusedNode: focusedNode,
+                scrollOffsets: scrollOffsets,
+                offset: offset,
+                clip: effectiveOverlay,
+                context: context,
+                into: &tree
+            )
+            tree.commands.append(.popClip)
         }
     }
 }

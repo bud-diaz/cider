@@ -34,6 +34,16 @@ public enum Inspector {
             line += "  \(quoted(button.title))\(button.isEnabled ? "" : "  disabled")"
         case .vstack(let stack):
             line += "  spacing=\(format(stack.spacing)) alignment=\(stack.alignment.rawValue)"
+        case .image(let image):
+            line += "  \(image.source.width)x\(image.source.height)"
+        case .scrollView(let scroll):
+            line += "  viewport=\(format(scroll.viewportSize.width))x\(format(scroll.viewportSize.height))"
+        case .textField(let field):
+            line += "  \(quoted(field.text))"
+        case .navigationStack:
+            break
+        case .modal(let modal):
+            line += "  presenting=\(modal.presented != nil)"
         }
 
         var lines = [line]
@@ -60,6 +70,12 @@ public enum Inspector {
                     "\(index)  text \(quoted(content)) baseline=\(format(origin)) "
                         + "size=\(format(font.size)) weight=\(font.weight.rawValue) \(format(color))"
                 )
+            case .image(let rect, let source):
+                lines.append("\(index)  image \(format(rect)) \(source.width)x\(source.height)")
+            case .pushClip(let rect):
+                lines.append("\(index)  pushClip \(format(rect))")
+            case .popClip:
+                lines.append("\(index)  popClip")
             }
         }
 

@@ -1,6 +1,14 @@
 //  The application entry point.
-
-import CiderCore
+//
+//  `@_exported` re-exports CiderCore's types (`Color`, `FontRequest`,
+//  `ImageSource`, ...) so an application that only depends on the `CiderUI`
+//  product -- as every example under `examples/` does -- can still name them
+//  (`Image(.solid(Color(hex: ...), ...))`, `.foregroundColor(...)`) without
+//  a separate dependency on a module Cider never published as its own
+//  library product. `CiderUITree` stays unexported: nothing in the
+//  application-facing API (`Text`, `Image`, `Button`, ...) hands an
+//  application `UINode` or a sibling type to name.
+@_exported import CiderCore
 import CiderHostBootstrap
 import CiderRuntime
 import CiderUITree
@@ -44,7 +52,7 @@ public extension CiderApp {
     /// developer gets the four-part message described in
     /// docs/02-product-requirements.md FR-007 rather than an exit code.
     static func main() {
-        let sink = StandardOutputLogSink()
+        let sink = RedactingLogSink(wrapping: StandardOutputLogSink())
 
         do {
             let descriptor = try LaunchEnvironment.resolveDescriptor()

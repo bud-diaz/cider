@@ -96,6 +96,18 @@ public struct ButtonNode: Equatable, Sendable {
     }
 }
 
+/// A bitmap, already decoded. See `ImageSource`'s doc comment for why there is
+/// no decoder here.
+public struct ImageNode: Equatable, Sendable {
+    public var id: NodeID
+    public var source: ImageSource
+
+    public init(id: NodeID, source: ImageSource) {
+        self.id = id
+        self.source = source
+    }
+}
+
 /// A vertical stack of children.
 public struct VStackNode: Equatable, Sendable {
     public var id: NodeID
@@ -116,26 +128,146 @@ public struct VStackNode: Equatable, Sendable {
     }
 }
 
-/// The MVP node set. Deliberately three cases: docs/05-implementation-roadmap.md
-/// puts scrolling, lists, navigation and modals in Stage 2, and adding them now
-/// would mean designing layout for constraints no one has exercised yet.
+/// A scrollable viewport over a single child that may be larger than it.
+///
+/// `viewportSize` is explicit rather than inherited from a parent's proposed
+/// size: `LayoutEngine.measure`'s `proposedSize` parameter exists but nothing
+/// consults it yet (see its doc comment), and the root layout path
+/// (`layoutCentered`) doesn't propose one at all. An explicit size is the
+/// honest MVP scope -- "fill the space my parent gives me" is real work
+/// `layoutCentered`'s own doc comment already flags as a placeholder Stage 2
+/// needs to replace, and that replacement is B7's job, not this one's.
+public struct ScrollViewNode: Equatable, Sendable {
+    public var id: NodeID
+    public var viewportSize: Size
+    public var content: UINode
+
+    public init(id: NodeID, viewportSize: Size, content: UINode) {
+        self.id = id
+        self.viewportSize = viewportSize
+        self.content = content
+    }
+}
+
+/// A single line of editable text, bound to application state.
+///
+/// Carries its *current* text as plain data, the same way `TextNode` does --
+/// not a closure, not a binding. Editing flows through the same side-channel
+/// as a button's action: `LoweringContext.register(textInputHandler:for:)`
+/// gives the runtime a `(String) -> Void` it can call without knowing what
+/// `@CiderState` property is on the other end of it.
+public struct TextFieldNode: Equatable, Sendable {
+    public var id: NodeID
+    public var text: String
+    public var font: FontRequest
+    public var textColor: Color
+    public var backgroundColor: Color
+    public var cornerRadius: Double
+    public var padding: EdgeInsets
+    public var width: Double
+
+    public init(
+        id: NodeID,
+        text: String,
+        font: FontRequest,
+        textColor: Color,
+        backgroundColor: Color,
+        cornerRadius: Double,
+        padding: EdgeInsets,
+        width: Double
+    ) {
+        self.id = id
+        self.text = text
+        self.font = font
+        self.textColor = textColor
+        self.backgroundColor = backgroundColor
+        self.cornerRadius = cornerRadius
+        self.padding = padding
+        self.width = width
+    }
+}
+
+/// The currently active screen of a navigation stack, filling whatever space
+/// it's given.
+///
+/// There is no array of screens here -- only ever the *one* currently on
+/// top, the same reasoning `ButtonNode` carries no closure: which screen is
+/// active is interaction state (`CiderState`-backed, living in the app,
+/// the same way `TextField`'s bound text does), not something the normalized
+/// tree needs to represent as history. Pushing or popping just changes what
+/// `content` lowers to on the next rebuild.
+public struct NavigationStackNode: Equatable, Sendable {
+    public var id: NodeID
+    public var content: UINode
+
+    public init(id: NodeID, content: UINode) {
+        self.id = id
+        self.content = content
+    }
+}
+
+/// A base screen, and optionally something presented modally on top of it.
+///
+/// `presented` is `nil` most of the time -- that's the "not showing a
+/// modal" state, the same way `ScrollViewNode.content` always exists but a
+/// navigation stack's pushed screens don't: whether something is presented
+/// is interaction state (`CiderState<Bool>`-backed, living on the app, the
+/// same pattern `NavigationStackNode` and `TextFieldNode` both already
+/// use), not something this node stores a history of. `content` is always
+/// laid out and drawn; `presented`, when non-nil, draws on top of a dimming
+/// overlay, filling the same frame `content` does -- MVP scope is a
+/// full-screen presentation, not a partial-height sheet.
+public struct ModalPresenterNode: Equatable, Sendable {
+    public var id: NodeID
+    public var content: UINode
+    public var presented: UINode?
+    public var overlayColor: Color
+
+    public init(id: NodeID, content: UINode, presented: UINode?, overlayColor: Color) {
+        self.id = id
+        self.content = content
+        self.presented = presented
+        self.overlayColor = overlayColor
+    }
+}
+
+/// docs/05-implementation-roadmap.md Stage 2 adds scrolling, lists,
+/// navigation and modals on top of the Stage 0/1 set (text, button, stack);
+/// `image`, `scrollView`, `textField`, `navigationStack` and `modal` are
+/// those additions. Per docs/adr/0003-ui-tree-model.md, adding a node
+/// kind means touching this type, `LayoutEngine.measure`, `LayoutEngine.place`,
+/// `RenderTreeBuilder` and `Inspector` -- five places, deliberately, each an
+/// exhaustive switch with no `default:`.
 public indirect enum UINode: Equatable, Sendable {
     case text(TextNode)
     case button(ButtonNode)
     case vstack(VStackNode)
+    case image(ImageNode)
+    case scrollView(ScrollViewNode)
+    case textField(TextFieldNode)
+    case navigationStack(NavigationStackNode)
+    case modal(ModalPresenterNode)
 
     public var id: NodeID {
         switch self {
         case .text(let node): return node.id
         case .button(let node): return node.id
         case .vstack(let node): return node.id
+        case .image(let node): return node.id
+        case .scrollView(let node): return node.id
+        case .textField(let node): return node.id
+        case .navigationStack(let node): return node.id
+        case .modal(let node): return node.id
         }
     }
 
     public var children: [UINode] {
         switch self {
         case .vstack(let node): return node.children
-        case .text, .button: return []
+        case .scrollView(let node): return [node.content]
+        case .navigationStack(let node): return [node.content]
+        case .modal(let node): return node.presented.map { [node.content, $0] } ?? [node.content]
+        case .text, .button, .image, .textField: return []
         }
     }
 
@@ -145,6 +277,22 @@ public indirect enum UINode: Equatable, Sendable {
         case .text: return "TextNode"
         case .button: return "ButtonNode"
         case .vstack: return "VStackNode"
+        case .image: return "ImageNode"
+        case .scrollView: return "ScrollViewNode"
+        case .textField: return "TextFieldNode"
+        case .navigationStack: return "NavigationStackNode"
+        case .modal: return "ModalPresenterNode"
         }
+    }
+
+    /// Depth-first search for a node by identity. The runtime uses this to
+    /// read a text field's *current* text when a key arrives -- the tree is
+    /// the only place that value lives; nothing keeps a separate copy.
+    public func find(_ id: NodeID) -> UINode? {
+        if self.id == id { return self }
+        for child in children {
+            if let found = child.find(id) { return found }
+        }
+        return nil
     }
 }

@@ -119,3 +119,112 @@ struct TextOnlyApp: CiderApp {
         Text("Hello")
     }
 }
+
+/// A single image, for the image conformance test.
+struct ImageOnlyApp: CiderApp {
+    var body: some CiderView {
+        Image(.solid(Color(hex: 0xFF00FF), width: 12, height: 8))
+    }
+}
+
+/// A single text field, for the text-field conformance test.
+struct TextFieldTestApp: CiderApp {
+    @CiderState var text = ""
+
+    var body: some CiderView {
+        TextField($text, width: 100)
+    }
+}
+
+/// Ten button rows plus a trailing status row, in a viewport short enough
+/// that most rows start out scrolled out of view -- for the list
+/// conformance test.
+struct ListTestApp: CiderApp {
+    @CiderState var lastTapped = -1
+
+    var body: some CiderView {
+        List(width: 100, height: 30) {
+            for index in 0..<10 {
+                Button("Row \(index)") { lastTapped = index }.font(size: 10)
+            }
+            Text("Last: \(lastTapped)").font(size: 10)
+        }
+    }
+}
+
+/// A screen pushed onto the navigation stack, with a way back -- for the
+/// navigation conformance tests. Holds the same `CiderState` binding the
+/// root screen does, the same reasoning `TextField` binds one -- there's no
+/// other channel for a pushed screen to reach the path that put it there.
+struct NavigationDetailScreen: CiderView {
+    let path: CiderState<[any CiderView]>
+
+    var body: some CiderView {
+        VStack {
+            Text("Detail")
+            Button("Back") { path.wrappedValue.removeLast() }
+        }
+    }
+}
+
+/// A root screen that pushes one screen, and the screen it pushes -- for
+/// the navigation conformance test.
+struct NavigationTestApp: CiderApp {
+    @CiderState var path: [any CiderView] = []
+
+    var body: some CiderView {
+        NavigationView($path) {
+            VStack {
+                Text("Root")
+                Button("Go") { path.append(NavigationDetailScreen(path: $path)) }
+            }
+        }
+    }
+}
+
+/// The content shown modally -- for the modal conformance test.
+struct ModalDetailScreen: CiderView {
+    let isPresented: CiderState<Bool>
+
+    var body: some CiderView {
+        VStack {
+            Text("Presented")
+            Button("Dismiss") { isPresented.wrappedValue = false }
+        }
+    }
+}
+
+/// A base screen with a button that presents a modal over it -- for the
+/// modal conformance test.
+struct ModalTestApp: CiderApp {
+    @CiderState var isPresented = false
+
+    var body: some CiderView {
+        Modal($isPresented) {
+            VStack {
+                Text("Base")
+                Button("Present") { isPresented = true }
+            }
+        } presenting: {
+            ModalDetailScreen(isPresented: $isPresented)
+        }
+    }
+}
+
+/// A short viewport over content taller than it, with a button positioned so
+/// it starts out entirely scrolled out of view -- for the scroll conformance
+/// test, including whether hit-testing respects the clip.
+struct ScrollTestApp: CiderApp {
+    @CiderState var count = 0
+
+    var body: some CiderView {
+        ScrollView(width: 100, height: 20) {
+            VStack(spacing: 0) {
+                Text("Row 0").font(size: 10)
+                Text("Row 1").font(size: 10)
+                Button("Tap") { count += 1 }.font(size: 10)
+                Text("Count: \(count)").font(size: 10)
+            }
+        }
+    }
+}

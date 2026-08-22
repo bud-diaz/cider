@@ -50,6 +50,35 @@ final class GeometryTests: XCTestCase {
         XCTAssertEqual(insets.horizontal, 48)
         XCTAssertEqual(insets.vertical, 24)
     }
+
+    func testIntersectionOfOverlappingRects() {
+        let a = Rect(x: 0, y: 0, width: 100, height: 100)
+        let b = Rect(x: 50, y: 25, width: 100, height: 100)
+
+        let result = try? XCTUnwrap(a.intersection(b))
+        XCTAssertEqual(result, Rect(x: 50, y: 25, width: 50, height: 75))
+        XCTAssertEqual(a.intersection(b), b.intersection(a), "intersection is symmetric")
+    }
+
+    func testIntersectionOfNonOverlappingRectsIsNil() {
+        let a = Rect(x: 0, y: 0, width: 10, height: 10)
+        let b = Rect(x: 20, y: 20, width: 10, height: 10)
+        XCTAssertNil(a.intersection(b))
+    }
+
+    func testIntersectionOfRectsThatOnlyTouchIsNil() {
+        // Matches contains(_:)'s half-open convention: sharing only an edge is
+        // not an overlap, so a zero-area clip doesn't sneak through as valid.
+        let a = Rect(x: 0, y: 0, width: 10, height: 10)
+        let b = Rect(x: 10, y: 0, width: 10, height: 10)
+        XCTAssertNil(a.intersection(b))
+    }
+
+    func testIntersectionOfANestedRectIsTheInnerRect() {
+        let outer = Rect(x: 0, y: 0, width: 100, height: 100)
+        let inner = Rect(x: 10, y: 10, width: 20, height: 20)
+        XCTAssertEqual(outer.intersection(inner), inner)
+    }
 }
 
 final class ColorTests: XCTestCase {

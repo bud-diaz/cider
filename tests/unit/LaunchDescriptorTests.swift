@@ -15,13 +15,27 @@ final class LaunchDescriptorTests: XCTestCase {
             deviceProfileName: "phone-standard",
             permissions: AppPermissions(network: false, localStorage: true),
             logLevel: .debug,
-            inspectorEnabled: true
+            inspectorEnabled: true,
+            sandboxDataRoot: "/home/dev/.local/share/cider/apps/dev.cider.hello"
         )
     }
 
     func testRoundTrip() throws {
         let decoded = try LaunchDescriptor.decode(sample.encoded())
         XCTAssertEqual(decoded, sample)
+    }
+
+    func testSandboxDataRootDefaultsToEmptyWhenAbsent() throws {
+        let text = """
+            descriptor-version = 1
+            app.id = dev.cider.hello
+            app.name = Hello Cider
+            app.entry = HelloCiderApp
+            runtime.minimum-compatibility = 0.1
+            device.name = phone-standard
+            """
+        let decoded = try LaunchDescriptor.decode(text)
+        XCTAssertEqual(decoded.sandboxDataRoot, "", "no sandbox root without going through cider run")
     }
 
     func testCommentsAndBlankLinesAreIgnored() throws {

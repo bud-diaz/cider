@@ -29,10 +29,13 @@ enum RunCommand {
 
         let artifact = try BuildCommand.artifactURL(for: project, configuration: configuration)
 
+        let sandboxRoot = try SandboxPathResolver.prepare(for: project.manifest.appID)
+
         let descriptor = project.manifest.launchDescriptor(
             deviceOverride: device.name,
             logLevel: logLevel,
-            inspectorEnabled: command.has("--inspect")
+            inspectorEnabled: command.has("--inspect"),
+            sandboxDataRoot: sandboxRoot.path
         )
         let descriptorURL = try write(descriptor, for: project)
 

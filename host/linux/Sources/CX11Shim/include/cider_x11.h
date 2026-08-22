@@ -28,7 +28,10 @@ enum cider_x11_event_kind {
     CIDER_X11_EVENT_POINTER_EXIT = 4,
     CIDER_X11_EVENT_REDRAW = 5,
     CIDER_X11_EVENT_RESIZE = 6,
-    CIDER_X11_EVENT_CLOSE = 7
+    CIDER_X11_EVENT_CLOSE = 7,
+    CIDER_X11_EVENT_SCROLL = 8,
+    CIDER_X11_EVENT_KEY_DOWN = 9,
+    CIDER_X11_EVENT_KEY_UP = 10
 };
 
 typedef struct {
@@ -41,7 +44,27 @@ typedef struct {
     /* Populated for CIDER_X11_EVENT_RESIZE. */
     int width;
     int height;
+    /* Populated for CIDER_X11_EVENT_SCROLL. One full wheel detent is +-1;
+       there is no sub-notch resolution to report. */
+    int scroll_delta_x;
+    int scroll_delta_y;
+    /* Populated for CIDER_X11_EVENT_KEY_DOWN / CIDER_X11_EVENT_KEY_UP: the
+       X11 KeySym for the unshifted key, via XLookupKeysym. This is a raw
+       host key code, not composed text -- see cider_x11_event_kind's doc
+       comment in the Swift HostEvent it feeds. */
+    unsigned long key_sym;
 } cider_x11_event;
+
+/*
+ * NOTE on keyboard text input: this shim reports raw key symbols
+ * (CIDER_X11_EVENT_KEY_DOWN / _KEY_UP) but does not yet compose them into
+ * text via an X input method (Xutf8LookupString / XIM / XIC). That needs a
+ * locale-dependent input context this shim does not set up. It is deferred
+ * until a text-entry view exists to consume it and can be used to test it
+ * interactively -- there is no automated test of the real X11 backend today
+ * (see CiderHostTesting), so this is verified by running `cider run`, not by
+ * `swift test`.
+ */
 
 /*
  * Opens a window of the given size in device pixels.

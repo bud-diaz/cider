@@ -36,12 +36,15 @@ public struct LayoutBox: Equatable, Sendable {
 
 public enum LayoutEngine {
 
-    /// Returns the size `node` wants, ignoring any limit.
+    /// Returns the size `node` wants, optionally within `proposedSize`.
     ///
-    /// Nothing in the MVP node set shrinks or wraps, so an unbounded measurement
-    /// is the whole story. When scrolling and text wrapping arrive this gains a
-    /// proposed-size parameter; the two-pass shape does not change.
-    public static func measure(_ node: UINode, context: LayoutContext) -> Size {
+    /// `proposedSize` is accepted but not yet consulted by any case: nothing in
+    /// the current node set shrinks or wraps, so an unbounded measurement is
+    /// still the whole story. The parameter exists so that scrolling, lists and
+    /// text wrapping -- which do need to propose a size to a child -- are a
+    /// change confined to the cases that care, not a signature change threaded
+    /// through every call site again. The two-pass shape does not change.
+    public static func measure(_ node: UINode, proposedSize: Size? = nil, context: LayoutContext) -> Size {
         switch node {
         case .text(let text):
             let run = context.textEngine.shape(text.text, font: text.font)
@@ -66,21 +69,67 @@ public enum LayoutEngine {
                 }
             }
             return Size(width: width, height: height)
+
+        case .image(let image):
+            return Size(width: Double(image.source.width), height: Double(image.source.height))
+
+        case .scrollView(let scroll):
+            // The viewport is explicit, not derived from content: a scroll
+            // view's whole point is that its content can be larger than it.
+            return scroll.viewportSize
+
+        case .textField(let field):
+            // Width is explicit, the same reasoning as a scroll view's
+            // viewport: sizing to the current text would make the field grow
+            // and shrink as someone types, and there is no "fill my parent"
+            // layout yet to give it a width another way. Height only needs
+            // the font's line metrics, not a shaped run -- it does not
+            // depend on the text's content.
+            let lineHeight = context.textEngine.metrics(for: field.font).lineHeight
+            return Size(width: field.width, height: lineHeight + field.padding.vertical)
+
+        case .navigationStack(let nav):
+            // Fills whatever it's proposed -- the screen underneath a
+            // navigation stack always occupies the whole safe area, the same
+            // way a scroll view's viewport is explicit rather than intrinsic.
+            // Falls back to measuring the active screen when nothing was
+            // proposed (e.g. a navigation stack nested inside a container
+            // that doesn't propose a size); that fallback is intrinsic, not
+            // "fill", so it only kicks in outside the root path.
+            return proposedSize ?? measure(nav.content, context: context)
+
+        case .modal(let modal):
+            // Fills whatever it's proposed -- the same "fill at the root,
+            // stay intrinsic when nested" behaviour `.navigationStack` has,
+            // and for the same reason: a modal's base content is exactly
+            // the kind of full-screen surface a navigation stack's active
+            // screen is. Without this, an app whose only content is a
+            // `Modal` would size its base content -- and therefore the
+            // overlay, which reuses that same frame -- to the base's own
+            // small intrinsic size instead of the safe area, and a dim
+            // overlay that doesn't cover the screen isn't a dim overlay.
+            // A presented screen never changes what space the base content
+            // measures at, the same reasoning a button's pressed colour
+            // doesn't affect its size.
+            return proposedSize ?? measure(modal.content, context: context)
         }
     }
 
-    /// Places `node` at its measured size inside `bounds`, centred on both axes.
+    /// Places `node` inside `bounds`, proposing the full bounds as the size.
     ///
-    /// The runtime uses this for the root: an application's content sits in the
-    /// middle of the safe area. It is a placeholder for real root behaviour --
-    /// filling, alignment modifiers and scrolling all belong to Stage 2 -- and it
-    /// is documented as such so nobody mistakes it for a considered default.
+    /// The runtime uses this for the root. Most node kinds ignore the proposal
+    /// and report their own intrinsic size, in which case this centres that
+    /// size within `bounds` -- still a placeholder for a real root that would
+    /// also offer alignment modifiers. A root that *does* consult the
+    /// proposal (`NavigationStackNode`, see its `measure` case) fills the
+    /// bounds instead: its measured size equals `bounds.size`, so the
+    /// centring below reduces to placing it flush at the origin.
     public static func layoutCentered(
         _ node: UINode,
         in bounds: Rect,
         context: LayoutContext
     ) -> LayoutBox {
-        let size = measure(node, context: context)
+        let size = measure(node, proposedSize: bounds.size, context: context)
         let origin = Point(
             x: bounds.minX + (bounds.width - size.width) / 2,
             y: bounds.minY + (bounds.height - size.height) / 2
@@ -98,7 +147,7 @@ public enum LayoutEngine {
         let frame = Rect(origin: origin, size: size)
 
         switch node {
-        case .text, .button:
+        case .text, .button, .image, .textField:
             return LayoutBox(id: node.id, frame: frame)
 
         case .vstack(let stack):
@@ -129,6 +178,38 @@ public enum LayoutEngine {
             }
 
             return LayoutBox(id: stack.id, frame: frame, children: children)
+
+        case .scrollView(let scroll):
+            // The content is placed at its own natural size, at the same
+            // origin as the viewport -- this is the *unscrolled* reference
+            // frame. Applying the current scroll offset is a render-tree
+            // concern (RenderTreeBuilder), not a layout concern, the same way
+            // a button's pressed appearance is: layout describes where things
+            // are absent interaction, and offsetting every descendant frame
+            // on every scroll tick would mean relaying out on every tick too.
+            let contentSize = measure(scroll.content, context: context)
+            let contentBox = place(scroll.content, at: origin, size: contentSize, context: context)
+            return LayoutBox(id: scroll.id, frame: frame, children: [contentBox])
+
+        case .navigationStack(let nav):
+            // Unlike a scroll view's content, the active screen fills the
+            // navigation stack's own frame -- there's nothing to scroll to,
+            // it's the whole point that the screen occupies all the space it
+            // was given.
+            let contentBox = place(nav.content, at: origin, size: size, context: context)
+            return LayoutBox(id: nav.id, frame: frame, children: [contentBox])
+
+        case .modal(let modal):
+            let contentBox = place(modal.content, at: origin, size: size, context: context)
+            guard let presented = modal.presented else {
+                return LayoutBox(id: modal.id, frame: frame, children: [contentBox])
+            }
+            // Fills the same frame as the base content -- MVP scope is a
+            // full-screen presentation, the same "no partial-fill layout
+            // beyond what proposedSize already buys" call ScrollView's own
+            // doc comment already made for its viewport.
+            let presentedBox = place(presented, at: origin, size: size, context: context)
+            return LayoutBox(id: modal.id, frame: frame, children: [contentBox, presentedBox])
         }
     }
 }

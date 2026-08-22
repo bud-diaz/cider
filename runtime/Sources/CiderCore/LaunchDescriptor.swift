@@ -40,6 +40,12 @@ public struct LaunchDescriptor: Equatable, Sendable {
     public var logLevel: LogLevel
     public var inspectorEnabled: Bool
 
+    /// Root of this application's isolated on-disk data area, prepared by
+    /// `cider run` before launch (docs/03-technical-architecture.md section
+    /// 8: "per-app data roots"). Empty when the binary was started without
+    /// going through the CLI, in which case no sandbox root exists.
+    public var sandboxDataRoot: String
+
     public init(
         version: Int = LaunchDescriptor.currentVersion,
         appID: String,
@@ -49,7 +55,8 @@ public struct LaunchDescriptor: Equatable, Sendable {
         deviceProfileName: String,
         permissions: AppPermissions,
         logLevel: LogLevel = .info,
-        inspectorEnabled: Bool = false
+        inspectorEnabled: Bool = false,
+        sandboxDataRoot: String = ""
     ) {
         self.version = version
         self.appID = appID
@@ -60,6 +67,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
         self.permissions = permissions
         self.logLevel = logLevel
         self.inspectorEnabled = inspectorEnabled
+        self.sandboxDataRoot = sandboxDataRoot
     }
 
     public func encoded() -> String {
@@ -75,6 +83,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
         permissions.local-storage = \(permissions.localStorage)
         log.level = \(logLevel.name)
         inspector.enabled = \(inspectorEnabled)
+        sandbox.data-root = \(sandboxDataRoot)
 
         """
     }
@@ -138,7 +147,8 @@ public struct LaunchDescriptor: Equatable, Sendable {
                 localStorage: fields["permissions.local-storage"] == "true"
             ),
             logLevel: fields["log.level"].flatMap(LogLevel.init(name:)) ?? .info,
-            inspectorEnabled: fields["inspector.enabled"] == "true"
+            inspectorEnabled: fields["inspector.enabled"] == "true",
+            sandboxDataRoot: fields["sandbox.data-root"] ?? ""
         )
     }
 }

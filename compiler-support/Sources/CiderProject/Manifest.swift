@@ -43,7 +43,8 @@ public struct Manifest: Equatable, Sendable {
     public func launchDescriptor(
         deviceOverride: String? = nil,
         logLevel: LogLevel = .info,
-        inspectorEnabled: Bool = false
+        inspectorEnabled: Bool = false,
+        sandboxDataRoot: String = ""
     ) -> LaunchDescriptor {
         LaunchDescriptor(
             appID: appID,
@@ -53,7 +54,8 @@ public struct Manifest: Equatable, Sendable {
             deviceProfileName: deviceOverride ?? deviceProfileName,
             permissions: permissions,
             logLevel: logLevel,
-            inspectorEnabled: inspectorEnabled
+            inspectorEnabled: inspectorEnabled,
+            sandboxDataRoot: sandboxDataRoot
         )
     }
 }

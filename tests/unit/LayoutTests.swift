@@ -41,6 +41,48 @@ final class LayoutTests: XCTestCase {
         )
     }
 
+    private func textField(_ id: String, _ text: String, width: Double, size: Double = 10) -> UINode {
+        .textField(
+            TextFieldNode(
+                id: NodeID(path: id),
+                text: text,
+                font: FontRequest(size: size),
+                textColor: .black,
+                backgroundColor: .white,
+                cornerRadius: 4,
+                padding: EdgeInsets(horizontal: 8, vertical: 4),
+                width: width
+            )
+        )
+    }
+
+    private func scrollView(_ id: String, width: Double, height: Double, content: UINode) -> UINode {
+        .scrollView(
+            ScrollViewNode(
+                id: NodeID(path: id),
+                viewportSize: Size(width: width, height: height),
+                content: content
+            )
+        )
+    }
+
+    private func navigationStack(_ id: String, content: UINode) -> UINode {
+        .navigationStack(NavigationStackNode(id: NodeID(path: id), content: content))
+    }
+
+    private func modal(_ id: String, content: UINode, presented: UINode?) -> UINode {
+        .modal(ModalPresenterNode(id: NodeID(path: id), content: content, presented: presented, overlayColor: .black))
+    }
+
+    private func image(_ id: String, width: Int, height: Int) -> UINode {
+        .image(
+            ImageNode(
+                id: NodeID(path: id),
+                source: .solid(.black, width: width, height: height)
+            )
+        )
+    }
+
     // MARK: - Measurement
 
     func testTextMeasuresToAdvanceTimesLineHeight() {
@@ -88,6 +130,86 @@ final class LayoutTests: XCTestCase {
     func testEmptyVStackIsZeroSized() {
         let empty = UINode.vstack(VStackNode(id: .root, spacing: 8, alignment: .center, children: []))
         XCTAssertEqual(LayoutEngine.measure(empty, context: context), .zero)
+    }
+
+    func testImageMeasuresToItsSourcePixelDimensions() {
+        let size = LayoutEngine.measure(image("i", width: 40, height: 30), context: context)
+        XCTAssertEqual(size, Size(width: 40, height: 30))
+    }
+
+    func testTextFieldMeasuresToItsExplicitWidthAndTheFontsLineHeight() {
+        // Width doesn't depend on the text -- see TextFieldNode's doc
+        // comment -- and height doesn't need a shaped run, only the font's
+        // metrics, since it doesn't depend on the text either.
+        let empty = LayoutEngine.measure(textField("f", "", width: 80, size: 10), context: context)
+        let long = LayoutEngine.measure(textField("f", "a very long string indeed", width: 80, size: 10), context: context)
+
+        XCTAssertEqual(empty, long, "content must not affect size")
+        XCTAssertEqual(empty.width, 80, accuracy: 1e-9)
+        XCTAssertEqual(empty.height, 12 + 4 + 4, accuracy: 1e-9, "1.2 x 10pt line height plus vertical padding")
+    }
+
+    func testScrollViewMeasuresToItsExplicitViewportSizeRegardlessOfContent() {
+        // The whole point of a scroll view is that its content can be a
+        // different size than it is -- much larger, here.
+        let tallContent = UINode.vstack(
+            VStackNode(
+                id: NodeID(path: "s/0"),
+                spacing: 0,
+                alignment: .center,
+                children: (0..<20).map { text("s/0/\($0)", "row", size: 10) }
+            )
+        )
+        let scroll = scrollView("s", width: 90, height: 50, content: tallContent)
+
+        let size = LayoutEngine.measure(scroll, context: context)
+        XCTAssertEqual(size, Size(width: 90, height: 50))
+    }
+
+    func testNavigationStackFillsAProposedSizeRegardlessOfItsContentsIntrinsicSize() {
+        let nav = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let size = LayoutEngine.measure(nav, proposedSize: Size(width: 390, height: 763), context: context)
+        XCTAssertEqual(size, Size(width: 390, height: 763))
+    }
+
+    func testNavigationStackFallsBackToItsContentsIntrinsicSizeWhenNothingIsProposed() {
+        let nav = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let size = LayoutEngine.measure(nav, context: context)
+        XCTAssertEqual(size, LayoutEngine.measure(text("n/0", "hi", size: 10), context: context))
+    }
+
+    func testModalFillsAProposedSizeRegardlessOfItsContentsIntrinsicSize() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let size = LayoutEngine.measure(node, proposedSize: Size(width: 390, height: 763), context: context)
+        XCTAssertEqual(size, Size(width: 390, height: 763))
+    }
+
+    func testModalFallsBackToItsContentsIntrinsicSizeWhenNothingIsProposed() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let size = LayoutEngine.measure(node, context: context)
+        XCTAssertEqual(size, LayoutEngine.measure(text("m/0", "hi", size: 10), context: context))
+    }
+
+    func testModalMeasureIgnoresPresentedContentEntirely() {
+        // A presented screen overlays; it must never influence what space
+        // the base content -- and therefore the modal as a whole -- measures
+        // at, the same reasoning a button's pressed colour doesn't affect
+        // its size.
+        let bigPresented = UINode.vstack(
+            VStackNode(
+                id: NodeID(path: "m/1"),
+                spacing: 0,
+                alignment: .center,
+                children: (0..<20).map { text("m/1/\($0)", "row", size: 10) }
+            )
+        )
+        let withoutPresented = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let withPresented = modal("m", content: text("m/0", "hi", size: 10), presented: bigPresented)
+
+        XCTAssertEqual(
+            LayoutEngine.measure(withoutPresented, context: context),
+            LayoutEngine.measure(withPresented, context: context)
+        )
     }
 
     // MARK: - Placement
@@ -147,6 +269,109 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(box.frame.midY, bounds.midY, accuracy: 1e-9)
     }
 
+    func testImagePlacesAtItsMeasuredFrame() {
+        let node = image("i", width: 40, height: 30)
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 40, height: 30), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 40, height: 30))
+        XCTAssertTrue(box.children.isEmpty)
+    }
+
+    func testTextFieldPlacesAtItsMeasuredFrame() {
+        let node = textField("f", "hello", width: 80, size: 10)
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 80, height: 20), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 80, height: 20))
+        XCTAssertTrue(box.children.isEmpty)
+    }
+
+    func testScrollViewPlacesItsContentAtTheViewportsOriginUnscrolled() {
+        // Layout describes the *unscrolled* reference frame -- content starts
+        // flush with the viewport's top-left. Applying an actual scroll
+        // offset is RenderTreeBuilder's job (see RasterizerClipTests-adjacent
+        // coverage in ConformanceTests' UI-SCROLL-001 for that half).
+        let content = text("s/0", "hello", size: 10)
+        let node = scrollView("s", width: 90, height: 50, content: content)
+
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 90, height: 50), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 90, height: 50))
+        XCTAssertEqual(box.children.count, 1)
+
+        let contentBox = box.children[0]
+        XCTAssertEqual(contentBox.frame.minX, 5, accuracy: 1e-9)
+        XCTAssertEqual(contentBox.frame.minY, 9, accuracy: 1e-9)
+        // The content's own natural size (5 glyphs at 0.6 x 10pt, 1.2 x 10pt
+        // line height), not the viewport's -- it can be smaller or larger.
+        XCTAssertEqual(contentBox.frame.width, 5 * 6, accuracy: 1e-9)
+        XCTAssertEqual(contentBox.frame.height, 12, accuracy: 1e-9)
+    }
+
+    func testScrollViewContentCanExceedTheViewport() {
+        let tallContent = UINode.vstack(
+            VStackNode(
+                id: NodeID(path: "s/0"),
+                spacing: 0,
+                alignment: .center,
+                children: (0..<20).map { text("s/0/\($0)", "row", size: 10) }
+            )
+        )
+        let node = scrollView("s", width: 90, height: 50, content: tallContent)
+        let box = LayoutEngine.place(node, at: .zero, size: Size(width: 90, height: 50), context: context)
+
+        XCTAssertGreaterThan(box.children[0].frame.height, box.frame.height)
+    }
+
+    func testNavigationStackPlacesItsContentAtTheStacksFullFrameNotItsOwnIntrinsicSize() {
+        let nav = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let box = LayoutEngine.place(nav, at: Point(x: 5, y: 9), size: Size(width: 390, height: 763), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 390, height: 763))
+        XCTAssertEqual(box.children.count, 1)
+        // Unlike a scroll view's content, the active screen fills the frame
+        // it was placed at rather than being placed at its own smaller size.
+        XCTAssertEqual(box.children[0].frame, Rect(x: 5, y: 9, width: 390, height: 763))
+    }
+
+    func testLayoutCenteredFillsBoundsForANavigationStackRootInsteadOfCentering() {
+        let node = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let bounds = Rect(x: 0, y: 47, width: 390, height: 763)
+
+        let box = LayoutEngine.layoutCentered(node, in: bounds, context: context)
+
+        XCTAssertEqual(box.frame, bounds, "a navigation stack root fills the safe area rather than centring")
+    }
+
+    func testModalWithNothingPresentedPlacesOnlyItsContent() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 390, height: 763), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 390, height: 763))
+        XCTAssertEqual(box.children.count, 1, "no presented content means no second child box")
+    }
+
+    func testModalPlacesPresentedContentAtTheSameFrameAsItsContent() {
+        let node = modal(
+            "m",
+            content: text("m/0", "hi", size: 10),
+            presented: text("m/1", "there", size: 10)
+        )
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 390, height: 763), context: context)
+
+        XCTAssertEqual(box.children.count, 2)
+        XCTAssertEqual(box.children[0].frame, Rect(x: 5, y: 9, width: 390, height: 763), "content")
+        XCTAssertEqual(box.children[1].frame, Rect(x: 5, y: 9, width: 390, height: 763), "presented, same frame")
+    }
+
+    func testLayoutCenteredFillsBoundsForAModalRootInsteadOfCentering() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let bounds = Rect(x: 0, y: 47, width: 390, height: 763)
+
+        let box = LayoutEngine.layoutCentered(node, in: bounds, context: context)
+
+        XCTAssertEqual(box.frame, bounds, "a modal root fills the safe area rather than centring")
+    }
+
     func testBoxLookupFindsNestedNodes() {
         let node = UINode.vstack(
             VStackNode(
@@ -165,6 +390,40 @@ final class LayoutTests: XCTestCase {
 
         XCTAssertNotNil(box.box(for: NodeID(path: "root/1")))
         XCTAssertNil(box.box(for: NodeID(path: "root/9")))
+    }
+}
+
+final class UINodeFindTests: XCTestCase {
+
+    func testFindsANestedNodeByIdentity() {
+        let node = UINode.vstack(
+            VStackNode(
+                id: .root,
+                spacing: 0,
+                alignment: .center,
+                children: [
+                    .text(TextNode(id: NodeID(path: "root/0"), text: "a", font: FontRequest(size: 10), color: .black)),
+                    .button(
+                        ButtonNode(
+                            id: NodeID(path: "root/1"),
+                            title: "ok",
+                            font: FontRequest(size: 10),
+                            titleColor: .white,
+                            backgroundColor: .black,
+                            pressedBackgroundColor: .black,
+                            cornerRadius: 0,
+                            padding: .zero
+                        )
+                    ),
+                ]
+            )
+        )
+
+        guard case .button(let found) = node.find(NodeID(path: "root/1")) else {
+            return XCTFail("expected to find the button")
+        }
+        XCTAssertEqual(found.title, "ok")
+        XCTAssertNil(node.find(NodeID(path: "root/9")))
     }
 }
 

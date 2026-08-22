@@ -12,18 +12,29 @@ import CiderUITree
 /// What runs when a button is tapped.
 public typealias ActionHandler = () -> Void
 
-/// One frame's description of an application: a tree, and the actions its
-/// interactive nodes invoke.
+/// What runs when a focused text field's content changes, with the field's
+/// new text.
+public typealias TextInputHandler = (String) -> Void
+
+/// One frame's description of an application: a tree, the actions its
+/// interactive nodes invoke, and the handlers its editable nodes invoke on a
+/// change.
 ///
-/// Actions travel beside the tree rather than inside it so that `UINode` stays
-/// comparable, printable and free of captured state.
+/// Actions and text handlers travel beside the tree rather than inside it so
+/// that `UINode` stays comparable, printable and free of captured state.
 public struct ApplicationScene {
     public var root: UINode
     public var actions: [NodeID: ActionHandler]
+    public var textInputHandlers: [NodeID: TextInputHandler]
 
-    public init(root: UINode, actions: [NodeID: ActionHandler] = [:]) {
+    public init(
+        root: UINode,
+        actions: [NodeID: ActionHandler] = [:],
+        textInputHandlers: [NodeID: TextInputHandler] = [:]
+    ) {
         self.root = root
         self.actions = actions
+        self.textInputHandlers = textInputHandlers
     }
 }
 
