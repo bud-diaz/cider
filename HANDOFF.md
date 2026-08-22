@@ -9,16 +9,26 @@ session, whether or not the milestone finished.
 
 ## Status
 
-Part A (Stage 1 close-out), **B1** (Image node) and **B2** (layout &
-rendering foundations) are done. Next up: **B3** (host keyboard/scroll
-event plumbing — X11 C shim changes). B2 and B3 are both prerequisites
-for B4–B6 — do not start those out of order.
+Part A (Stage 1 close-out), **B1** (Image), **B2** (layout/rendering
+foundations) and **B3** (host input plumbing) are done. Next up: **B4**
+(ScrollView), which depends on both B2 (bounded size + clip) and B3
+(scroll event) — both are now in place.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
-CI came back green on Part A (159f987) and B1 (1d20d63) — real signal the
-toolchain setup and both are sound. B2 has been pushed for the same
-verification; check its result before starting B3.
+CI came back green on Part A (159f987), B1 (1d20d63) and B2 (c272a26).
+B3 has been pushed for the same verification; check its result before
+starting B4. **Important caveat for B3 specifically**: CI's `swift
+build`/`swift test` compile the X11 C shim (CiderUI depends on
+CiderHostBootstrap → CiderHostLinux → CX11Shim, and the test targets
+import CiderUI) but never execute it — every test uses the headless
+`TestingHostBackend`, never `LinuxHostBackend`/real X11. So a green CI run
+on B3 means the C changes compile and the Swift-side plumbing is
+logically sound; it is NOT evidence that scrolling or key events actually
+work when `cider run` opens a real X11 window. That needs a human (or a
+future session with real display access) to run
+`examples/hello-cider` under Xvfb or a real X session and try the mouse
+wheel and keyboard before this is trusted end-to-end.
 
 ## Done
 
@@ -103,6 +113,39 @@ verification; check its result before starting B3.
     on push/pop/nesting/unbalanced-pop, no baseline needed since a clip
     rect's effect is small enough to state directly).
 
+- **B3** — host input plumbing:
+  - `HostEvent` gained `.scroll(deltaX:deltaY:)`, `.keyDown(keyCode:)`,
+    `.keyUp(keyCode:)`, `.textInput(String)`
+    (`host/Sources/CiderHost/HostEvent.swift`).
+  - `Touch.swift`'s `PointerTranslator.touch(for:)` and
+    `ApplicationRuntime.handle(_:HostEvent)`
+    (`runtime/Sources/CiderRuntime/`) both gained cases for all four —
+    none of them are touches, and none has a consumer yet, so the
+    runtime side just traces them and does nothing else (matching B2's
+    "inert plumbing ahead of a consumer" pattern).
+  - `ApplicationRuntime` gained a `focusedNode: NodeID?` field alongside
+    `pressedNode`, with the same "vanished in a rebuild -> cleared"
+    safety `pressedNode` already had, and a `currentFocusedNode` public
+    accessor. Nothing sets it yet — no node kind accepts focus until B5.
+  - X11 shim (`host/linux/Sources/CX11Shim/`): `XSelectInput` now
+    requests `KeyPressMask | KeyReleaseMask`; `ButtonPress` for X11
+    buttons 4-7 (wheel notches) now emits `CIDER_X11_EVENT_SCROLL`
+    instead of being dropped (`ButtonRelease` for 4-7 is still dropped —
+    a wheel release carries nothing to report); new `KeyPress`/`KeyRelease`
+    cases report the raw keysym via `XLookupKeysym`.
+    `X11Window.swift` translates all three into `HostEvent` cases.
+  - **Deliberately NOT implemented**: `Xutf8LookupString`/XIM/XIC
+    composed-text input in the X11 shim, so the Linux backend does not
+    yet actually produce `.textInput` events (only `TestingHostBackend`
+    can, by construction — it queues whatever `HostEvent` it's handed).
+    See Deviations.
+  - Tests: extended `tests/integration/PointerTranslationTests.swift`'s
+    non-touch coverage to the four new cases, and added
+    `tests/conformance/HostInputPlumbingTests.swift` (unnumbered smoke
+    tests, not full `ID-###` conformance cases, since there's no
+    application-facing behavior yet to certify) confirming the events
+    are accepted without side effects.
+
 ## Deviations
 
 - The plan suggested putting sandbox path resolution "alongside
@@ -132,6 +175,27 @@ verification; check its result before starting B3.
   guessed `.ppm` file or a test that fails on every future CI run for an
   unrelated reason. Left for a session with a real toolchain instead of
   guessing. See Open issues.
+
+- **B3's `HostEvent.textInput` is not implemented by the Linux backend.**
+  The plan called for `Xutf8LookupString` in the X11 shim. That needs an
+  `XOpenIM`/`XCreateIC` input-method setup this session judged too risky
+  to add blind: it's new C code with real failure modes (locale/IM
+  availability varies by environment, including under Xvfb), touching
+  the same window-open path all of Stage 0/1 depends on, with zero
+  ability in this session to compile-test the C changes behaviorally
+  (see the CI caveat under Status) let alone run them interactively.
+  `keyDown`/`keyUp` (via `XLookupKeysym`, no new X resources) and
+  `scroll` (reusing the already-selected `ButtonPressMask`) were judged
+  low-risk enough to implement for real; composed text input was not.
+  `HostEvent.textInput` exists and is fully wired through the runtime
+  regardless, because `TestingHostBackend` can synthesize it for tests
+  with no dependency on the X11 shim — so B5 (TextField) can be built
+  and conformance-tested against it even before the Linux backend
+  actually produces one. Whoever picks up B5 needs to either implement
+  Xutf8LookupString/XIM/XIC in the C shim then (with real display access
+  to test it), or explicitly scope B5 to keyDown-driven text entry
+  (backspace, printable ASCII via keysym) without full IME composition
+  and note that as a known limitation.
 
 ## Open issues
 

@@ -158,7 +158,8 @@ cider_x11_window *cider_x11_window_open(const char *title,
 
     XSelectInput(display, w->window,
                  ExposureMask | ButtonPressMask | ButtonReleaseMask |
-                 PointerMotionMask | LeaveWindowMask | StructureNotifyMask);
+                 PointerMotionMask | LeaveWindowMask | StructureNotifyMask |
+                 KeyPressMask | KeyReleaseMask);
 
     w->wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(display, w->window, &w->wm_delete_window, 1);
@@ -273,11 +274,19 @@ int cider_x11_window_poll_event(cider_x11_window *window, cider_x11_event *out) 
 
         switch (event.type) {
         case ButtonPress:
-            /* Buttons 4-7 are scroll wheel notches in the X11 encoding. Cider
-               has no scrolling yet, so they are dropped here rather than
-               surfacing as bogus taps. */
+            /* Buttons 4-7 are scroll wheel notches in the X11 encoding, not
+               pointer buttons: 4/5 vertical, 6/7 horizontal. There is no
+               sub-notch resolution to report, so each press is exactly one
+               unit of delta in the matching direction. */
             if (event.xbutton.button >= 4 && event.xbutton.button <= 7) {
-                continue;
+                out->kind = CIDER_X11_EVENT_SCROLL;
+                switch (event.xbutton.button) {
+                case 4: out->scroll_delta_y = -1; break;
+                case 5: out->scroll_delta_y = 1; break;
+                case 6: out->scroll_delta_x = -1; break;
+                case 7: out->scroll_delta_x = 1; break;
+                }
+                return 1;
             }
             out->kind = CIDER_X11_EVENT_POINTER_DOWN;
             out->x = event.xbutton.x;
@@ -286,6 +295,8 @@ int cider_x11_window_poll_event(cider_x11_window *window, cider_x11_event *out) 
             return 1;
 
         case ButtonRelease:
+            /* The release half of a wheel notch carries nothing Cider uses;
+               only the press above becomes a scroll event. */
             if (event.xbutton.button >= 4 && event.xbutton.button <= 7) {
                 continue;
             }
@@ -293,6 +304,20 @@ int cider_x11_window_poll_event(cider_x11_window *window, cider_x11_event *out) 
             out->x = event.xbutton.x;
             out->y = event.xbutton.y;
             out->button = (int)event.xbutton.button;
+            return 1;
+
+        case KeyPress:
+            /* Index 0 is the unshifted keysym for the key's primary group --
+               enough for a raw key code. Composed/shifted text is
+               Xutf8LookupString's job, not implemented here; see the note in
+               cider_x11.h. */
+            out->kind = CIDER_X11_EVENT_KEY_DOWN;
+            out->key_sym = XLookupKeysym(&event.xkey, 0);
+            return 1;
+
+        case KeyRelease:
+            out->kind = CIDER_X11_EVENT_KEY_UP;
+            out->key_sym = XLookupKeysym(&event.xkey, 0);
             return 1;
 
         case MotionNotify:

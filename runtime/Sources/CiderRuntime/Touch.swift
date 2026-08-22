@@ -80,6 +80,10 @@ struct PointerTranslator {
 
         case .redrawRequested, .resized, .closeRequested:
             return nil
+
+        case .scroll, .keyDown, .keyUp, .textInput:
+            // None of these carry a pointer location; they are not touches.
+            return nil
         }
     }
 

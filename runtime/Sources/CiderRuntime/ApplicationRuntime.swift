@@ -57,6 +57,12 @@ public final class ApplicationRuntime: InvalidationTarget {
     /// The button currently held down, if any.
     private var pressedNode: NodeID?
 
+    /// The node with keyboard focus, if any. Nothing can set this yet -- no
+    /// node kind accepts focus until Stage 2's text field lands -- but
+    /// keyboard events need somewhere to route to once one exists, the same
+    /// reason `pressedNode` exists for touch.
+    private var focusedNode: NodeID?
+
     /// Frames presented since launch. Exposed for tests and the inspector.
     public private(set) var frameCount = 0
 
@@ -192,6 +198,27 @@ public final class ApplicationRuntime: InvalidationTarget {
         case .pointerDown, .pointerMove, .pointerUp, .pointerExit:
             guard let touch = translator?.touch(for: event) else { return }
             handle(touch)
+
+        case .scroll(let deltaX, let deltaY):
+            // No scroll container exists yet to consume this -- it lands with
+            // Stage 2's scroll view -- so for now this only proves the event
+            // reaches the runtime.
+            log.trace("scroll dx=\(deltaX) dy=\(deltaY)")
+
+        case .keyDown(let keyCode):
+            if let focusedNode {
+                log.trace("key down \(keyCode) (focus: \(focusedNode))")
+            }
+
+        case .keyUp(let keyCode):
+            if let focusedNode {
+                log.trace("key up \(keyCode) (focus: \(focusedNode))")
+            }
+
+        case .textInput(let text):
+            if let focusedNode {
+                log.trace("text input \(text.debugDescription) (focus: \(focusedNode))")
+            }
         }
     }
 
@@ -298,6 +325,13 @@ public final class ApplicationRuntime: InvalidationTarget {
                 pressedNode = nil
             }
 
+            // Same reasoning for focus: a focused node that vanished in the
+            // rebuild must not keep absorbing keyboard events nothing on
+            // screen can show the result of.
+            if let focused = focusedNode, layout.box(for: focused) == nil {
+                focusedNode = nil
+            }
+
             needsRebuild = false
 
             if descriptor.inspectorEnabled {
@@ -341,6 +375,10 @@ public final class ApplicationRuntime: InvalidationTarget {
 
     /// The node currently held down, if any.
     public var currentPressedNode: NodeID? { pressedNode }
+
+    /// The node with keyboard focus, if any. Always `nil` until a focusable
+    /// node kind exists to set it.
+    public var currentFocusedNode: NodeID? { focusedNode }
 
     // MARK: - Plumbing
 
