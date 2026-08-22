@@ -29,4 +29,9 @@ public enum Theme {
     public static let textFieldPadding = EdgeInsets(horizontal: 12, vertical: 8)
 
     public static let stackSpacing = 16.0
+
+    /// The dimming behind a presented modal. Partial alpha so the base
+    /// content stays visible underneath (dimmed, not hidden) -- straight
+    /// alpha, like every other colour here, composited by `Canvas.blend`.
+    public static let modalOverlayColor = Color(hex: 0x000000, alpha: 0.4)
 }

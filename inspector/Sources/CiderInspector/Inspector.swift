@@ -42,6 +42,8 @@ public enum Inspector {
             line += "  \(quoted(field.text))"
         case .navigationStack:
             break
+        case .modal(let modal):
+            line += "  presenting=\(modal.presented != nil)"
         }
 
         var lines = [line]

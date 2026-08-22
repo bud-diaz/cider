@@ -70,6 +70,10 @@ final class LayoutTests: XCTestCase {
         .navigationStack(NavigationStackNode(id: NodeID(path: id), content: content))
     }
 
+    private func modal(_ id: String, content: UINode, presented: UINode?) -> UINode {
+        .modal(ModalPresenterNode(id: NodeID(path: id), content: content, presented: presented, overlayColor: .black))
+    }
+
     private func image(_ id: String, width: Int, height: Int) -> UINode {
         .image(
             ImageNode(
@@ -172,6 +176,40 @@ final class LayoutTests: XCTestCase {
         let nav = navigationStack("n", content: text("n/0", "hi", size: 10))
         let size = LayoutEngine.measure(nav, context: context)
         XCTAssertEqual(size, LayoutEngine.measure(text("n/0", "hi", size: 10), context: context))
+    }
+
+    func testModalFillsAProposedSizeRegardlessOfItsContentsIntrinsicSize() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let size = LayoutEngine.measure(node, proposedSize: Size(width: 390, height: 763), context: context)
+        XCTAssertEqual(size, Size(width: 390, height: 763))
+    }
+
+    func testModalFallsBackToItsContentsIntrinsicSizeWhenNothingIsProposed() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let size = LayoutEngine.measure(node, context: context)
+        XCTAssertEqual(size, LayoutEngine.measure(text("m/0", "hi", size: 10), context: context))
+    }
+
+    func testModalMeasureIgnoresPresentedContentEntirely() {
+        // A presented screen overlays; it must never influence what space
+        // the base content -- and therefore the modal as a whole -- measures
+        // at, the same reasoning a button's pressed colour doesn't affect
+        // its size.
+        let bigPresented = UINode.vstack(
+            VStackNode(
+                id: NodeID(path: "m/1"),
+                spacing: 0,
+                alignment: .center,
+                children: (0..<20).map { text("m/1/\($0)", "row", size: 10) }
+            )
+        )
+        let withoutPresented = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let withPresented = modal("m", content: text("m/0", "hi", size: 10), presented: bigPresented)
+
+        XCTAssertEqual(
+            LayoutEngine.measure(withoutPresented, context: context),
+            LayoutEngine.measure(withPresented, context: context)
+        )
     }
 
     // MARK: - Placement
@@ -302,6 +340,36 @@ final class LayoutTests: XCTestCase {
         let box = LayoutEngine.layoutCentered(node, in: bounds, context: context)
 
         XCTAssertEqual(box.frame, bounds, "a navigation stack root fills the safe area rather than centring")
+    }
+
+    func testModalWithNothingPresentedPlacesOnlyItsContent() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 390, height: 763), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 390, height: 763))
+        XCTAssertEqual(box.children.count, 1, "no presented content means no second child box")
+    }
+
+    func testModalPlacesPresentedContentAtTheSameFrameAsItsContent() {
+        let node = modal(
+            "m",
+            content: text("m/0", "hi", size: 10),
+            presented: text("m/1", "there", size: 10)
+        )
+        let box = LayoutEngine.place(node, at: Point(x: 5, y: 9), size: Size(width: 390, height: 763), context: context)
+
+        XCTAssertEqual(box.children.count, 2)
+        XCTAssertEqual(box.children[0].frame, Rect(x: 5, y: 9, width: 390, height: 763), "content")
+        XCTAssertEqual(box.children[1].frame, Rect(x: 5, y: 9, width: 390, height: 763), "presented, same frame")
+    }
+
+    func testLayoutCenteredFillsBoundsForAModalRootInsteadOfCentering() {
+        let node = modal("m", content: text("m/0", "hi", size: 10), presented: nil)
+        let bounds = Rect(x: 0, y: 47, width: 390, height: 763)
+
+        let box = LayoutEngine.layoutCentered(node, in: bounds, context: context)
+
+        XCTAssertEqual(box.frame, bounds, "a modal root fills the safe area rather than centring")
     }
 
     func testBoxLookupFindsNestedNodes() {

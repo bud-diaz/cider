@@ -182,6 +182,35 @@ struct NavigationTestApp: CiderApp {
     }
 }
 
+/// The content shown modally -- for the modal conformance test.
+struct ModalDetailScreen: CiderView {
+    let isPresented: CiderState<Bool>
+
+    var body: some CiderView {
+        VStack {
+            Text("Presented")
+            Button("Dismiss") { isPresented.wrappedValue = false }
+        }
+    }
+}
+
+/// A base screen with a button that presents a modal over it -- for the
+/// modal conformance test.
+struct ModalTestApp: CiderApp {
+    @CiderState var isPresented = false
+
+    var body: some CiderView {
+        Modal($isPresented) {
+            VStack {
+                Text("Base")
+                Button("Present") { isPresented = true }
+            }
+        } presenting: {
+            ModalDetailScreen(isPresented: $isPresented)
+        }
+    }
+}
+
 /// A short viewport over content taller than it, with a button positioned so
 /// it starts out entirely scrolled out of view -- for the scroll conformance
 /// test, including whether hit-testing respects the clip.

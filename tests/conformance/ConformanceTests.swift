@@ -20,6 +20,7 @@
 //    UI-LIST-001       List's rows keep source order and scroll like a ScrollView
 //    NAV-PUSH-001      NavigationView lowers to a NavigationStackNode and pushes screens
 //    NAV-POP-001       popping a navigation stack returns to the screen underneath
+//    UI-MODAL-001      Modal dims and overlays base content, and blocks taps to it
 
 import XCTest
 
@@ -908,5 +909,114 @@ final class ConformanceTests: XCTestCase {
         let poppedButtonID = try harness.onlyButton().id
 
         XCTAssertEqual(poppedButtonID, rootButtonID)
+    }
+
+    // MARK: - UI-MODAL-001
+
+    /// UI-MODAL-001: a `Modal` becomes one ModalPresenterNode; while nothing
+    /// is presented its `presented` field is nil, and the base content is
+    /// what lowers into `content`.
+    func testUI_MODAL_001_modalLowersToAModalPresenterNode() throws {
+        let scene = Lowering.scene(from: ModalTestApp().body)
+
+        guard case .modal(let modal) = scene.root else {
+            return XCTFail("expected a ModalPresenterNode, got \(scene.root.kindName)")
+        }
+        XCTAssertNil(modal.presented)
+        guard case .vstack(let base) = modal.content else {
+            return XCTFail("expected the base screen's VStack as content, got \(modal.content.kindName)")
+        }
+        XCTAssertEqual(base.children.map(\.kindName), ["TextNode", "ButtonNode"])
+    }
+
+    /// UI-MODAL-001: with nothing presented, only the base content draws --
+    /// no dim overlay -- and the base's one button is the only hit region.
+    func testUI_MODAL_001_nothingPresentedDrawsOnlyTheBase() throws {
+        let harness = try ConformanceHarness(ModalTestApp())
+        try harness.launch()
+
+        XCTAssertTrue(harness.drawnStrings().contains("Base"))
+        XCTAssertFalse(harness.drawnStrings().contains("Presented"))
+        XCTAssertEqual(harness.runtime.currentRenderTree?.hitRegions.count, 1)
+    }
+
+    /// UI-MODAL-001: presenting draws a dimming overlay after the base
+    /// content, then the presented content after that -- painter's order
+    /// puts what's presented visually on top, the same as a button's label
+    /// painting after its own background.
+    func testUI_MODAL_001_presentingDrawsTheOverlayAndPresentedContentOnTop() throws {
+        let harness = try ConformanceHarness(ModalTestApp())
+        try harness.launch()
+
+        let present = try harness.onlyButton()
+        try harness.tap(at: Point(x: present.frame.midX, y: present.frame.midY))
+
+        XCTAssertTrue(harness.drawnStrings().contains("Base"), "the base still draws, dimmed underneath")
+        XCTAssertTrue(harness.drawnStrings().contains("Presented"))
+
+        let tree = try XCTUnwrap(harness.runtime.currentRenderTree)
+        var baseIndex: Int?
+        var overlayIndex: Int?
+        var presentedIndex: Int?
+        for (index, command) in tree.commands.enumerated() {
+            switch command {
+            case .text(let content, _, _, _) where content == "Base":
+                baseIndex = index
+            case .text(let content, _, _, _) where content == "Presented":
+                presentedIndex = index
+            case .fillRect(_, let color, _) where color == Theme.modalOverlayColor:
+                overlayIndex = index
+            default:
+                break
+            }
+        }
+
+        let base = try XCTUnwrap(baseIndex, "expected the base's text to have drawn")
+        let overlay = try XCTUnwrap(overlayIndex, "expected a dim-overlay fill")
+        let presented = try XCTUnwrap(presentedIndex, "expected the presented content's text to have drawn")
+        XCTAssertLessThan(base, overlay, "the overlay paints after the base")
+        XCTAssertLessThan(overlay, presented, "and before the presented content")
+    }
+
+    /// UI-MODAL-001: while presented, a tap on the dimmed area is swallowed
+    /// rather than reaching the base content underneath -- an enabled hit
+    /// region with no registered action still blocks `hitTest`'s reversed
+    /// scan from ever reaching what the overlay visually covers.
+    func testUI_MODAL_001_tappingTheDimmedOverlayDoesNotReachTheBase() throws {
+        let harness = try ConformanceHarness(ModalTestApp())
+        try harness.launch()
+
+        let present = try harness.onlyButton()
+        try harness.tap(at: Point(x: present.frame.midX, y: present.frame.midY))
+        XCTAssertTrue(harness.drawnStrings().contains("Presented"))
+
+        // Both screens lay out top-anchored (see LayoutEngine.place's
+        // `.modal`/`.navigationStack` cases), so a point near the bottom of
+        // the safe area is reliably clear of either screen's controls.
+        let safeArea = harness.runtime.deviceProfile.safeAreaBounds
+        try harness.tap(at: Point(x: safeArea.midX, y: safeArea.maxY - 2))
+
+        XCTAssertTrue(harness.drawnStrings().contains("Presented"), "the modal must still be showing")
+    }
+
+    /// UI-MODAL-001: tapping the presented content's own dismiss button
+    /// hides it, returning to the base content alone.
+    func testUI_MODAL_001_dismissingHidesThePresentedContent() throws {
+        let harness = try ConformanceHarness(ModalTestApp())
+        try harness.launch()
+
+        let present = try harness.onlyButton()
+        try harness.tap(at: Point(x: present.frame.midX, y: present.frame.midY))
+        XCTAssertTrue(harness.drawnStrings().contains("Presented"))
+
+        let tree = try XCTUnwrap(harness.runtime.currentRenderTree)
+        let dismiss = try XCTUnwrap(
+            tree.hitRegions.last,
+            "the dismiss button, appended last, should be the topmost hit region"
+        )
+        try harness.tap(at: Point(x: dismiss.frame.midX, y: dismiss.frame.midY))
+
+        XCTAssertFalse(harness.drawnStrings().contains("Presented"))
+        XCTAssertTrue(harness.drawnStrings().contains("Base"))
     }
 }

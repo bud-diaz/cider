@@ -324,6 +324,57 @@ public enum RenderTreeBuilder {
                 context: context,
                 into: &tree
             )
+
+        case .modal(let modal):
+            guard let contentLayout = layout.children.first else { break }
+            append(
+                node: modal.content,
+                layout: contentLayout,
+                pressedNode: pressedNode,
+                focusedNode: focusedNode,
+                scrollOffsets: scrollOffsets,
+                offset: offset,
+                clip: clip,
+                context: context,
+                into: &tree
+            )
+
+            // Painter's order does the z-ordering work for free: the
+            // overlay and the presented content are appended after the
+            // base content, so they paint on top of it, the same as a
+            // button's label painting after its background.
+            guard let presented = modal.presented, layout.children.count > 1 else { break }
+            let overlayFrame = layout.frame.offsetBy(dx: offset.x, dy: offset.y)
+            let effectiveOverlay: Rect?
+            if let clip {
+                effectiveOverlay = overlayFrame.intersection(clip)
+            } else {
+                effectiveOverlay = overlayFrame
+            }
+
+            guard let effectiveOverlay else { break }
+            tree.commands.append(.fillRect(rect: effectiveOverlay, color: modal.overlayColor, cornerRadius: 0))
+
+            // Swallows taps rather than letting them fall through to the
+            // base content underneath: an enabled hit region with no
+            // registered action still stops `hitTest`'s reversed scan
+            // (later commands paint over earlier ones) from ever reaching
+            // what the overlay visually covers.
+            tree.hitRegions.append(HitRegion(id: modal.id, frame: effectiveOverlay, isEnabled: true))
+
+            tree.commands.append(.pushClip(rect: overlayFrame))
+            append(
+                node: presented,
+                layout: layout.children[1],
+                pressedNode: pressedNode,
+                focusedNode: focusedNode,
+                scrollOffsets: scrollOffsets,
+                offset: offset,
+                clip: effectiveOverlay,
+                context: context,
+                into: &tree
+            )
+            tree.commands.append(.popClip)
         }
     }
 }

@@ -206,10 +206,35 @@ public struct NavigationStackNode: Equatable, Sendable {
     }
 }
 
+/// A base screen, and optionally something presented modally on top of it.
+///
+/// `presented` is `nil` most of the time -- that's the "not showing a
+/// modal" state, the same way `ScrollViewNode.content` always exists but a
+/// navigation stack's pushed screens don't: whether something is presented
+/// is interaction state (`CiderState<Bool>`-backed, living on the app, the
+/// same pattern `NavigationStackNode` and `TextFieldNode` both already
+/// use), not something this node stores a history of. `content` is always
+/// laid out and drawn; `presented`, when non-nil, draws on top of a dimming
+/// overlay, filling the same frame `content` does -- MVP scope is a
+/// full-screen presentation, not a partial-height sheet.
+public struct ModalPresenterNode: Equatable, Sendable {
+    public var id: NodeID
+    public var content: UINode
+    public var presented: UINode?
+    public var overlayColor: Color
+
+    public init(id: NodeID, content: UINode, presented: UINode?, overlayColor: Color) {
+        self.id = id
+        self.content = content
+        self.presented = presented
+        self.overlayColor = overlayColor
+    }
+}
+
 /// docs/05-implementation-roadmap.md Stage 2 adds scrolling, lists,
 /// navigation and modals on top of the Stage 0/1 set (text, button, stack);
-/// `image`, `scrollView`, `textField` and `navigationStack` are the first
-/// four of those to land. Per docs/adr/0003-ui-tree-model.md, adding a node
+/// `image`, `scrollView`, `textField`, `navigationStack` and `modal` are
+/// those additions. Per docs/adr/0003-ui-tree-model.md, adding a node
 /// kind means touching this type, `LayoutEngine.measure`, `LayoutEngine.place`,
 /// `RenderTreeBuilder` and `Inspector` -- five places, deliberately, each an
 /// exhaustive switch with no `default:`.
@@ -221,6 +246,7 @@ public indirect enum UINode: Equatable, Sendable {
     case scrollView(ScrollViewNode)
     case textField(TextFieldNode)
     case navigationStack(NavigationStackNode)
+    case modal(ModalPresenterNode)
 
     public var id: NodeID {
         switch self {
@@ -231,6 +257,7 @@ public indirect enum UINode: Equatable, Sendable {
         case .scrollView(let node): return node.id
         case .textField(let node): return node.id
         case .navigationStack(let node): return node.id
+        case .modal(let node): return node.id
         }
     }
 
@@ -239,6 +266,7 @@ public indirect enum UINode: Equatable, Sendable {
         case .vstack(let node): return node.children
         case .scrollView(let node): return [node.content]
         case .navigationStack(let node): return [node.content]
+        case .modal(let node): return node.presented.map { [node.content, $0] } ?? [node.content]
         case .text, .button, .image, .textField: return []
         }
     }
@@ -253,6 +281,7 @@ public indirect enum UINode: Equatable, Sendable {
         case .scrollView: return "ScrollViewNode"
         case .textField: return "TextFieldNode"
         case .navigationStack: return "NavigationStackNode"
+        case .modal: return "ModalPresenterNode"
         }
     }
 

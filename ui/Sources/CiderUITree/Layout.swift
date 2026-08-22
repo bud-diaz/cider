@@ -97,6 +97,21 @@ public enum LayoutEngine {
             // that doesn't propose a size); that fallback is intrinsic, not
             // "fill", so it only kicks in outside the root path.
             return proposedSize ?? measure(nav.content, context: context)
+
+        case .modal(let modal):
+            // Fills whatever it's proposed -- the same "fill at the root,
+            // stay intrinsic when nested" behaviour `.navigationStack` has,
+            // and for the same reason: a modal's base content is exactly
+            // the kind of full-screen surface a navigation stack's active
+            // screen is. Without this, an app whose only content is a
+            // `Modal` would size its base content -- and therefore the
+            // overlay, which reuses that same frame -- to the base's own
+            // small intrinsic size instead of the safe area, and a dim
+            // overlay that doesn't cover the screen isn't a dim overlay.
+            // A presented screen never changes what space the base content
+            // measures at, the same reasoning a button's pressed colour
+            // doesn't affect its size.
+            return proposedSize ?? measure(modal.content, context: context)
         }
     }
 
@@ -183,6 +198,18 @@ public enum LayoutEngine {
             // was given.
             let contentBox = place(nav.content, at: origin, size: size, context: context)
             return LayoutBox(id: nav.id, frame: frame, children: [contentBox])
+
+        case .modal(let modal):
+            let contentBox = place(modal.content, at: origin, size: size, context: context)
+            guard let presented = modal.presented else {
+                return LayoutBox(id: modal.id, frame: frame, children: [contentBox])
+            }
+            // Fills the same frame as the base content -- MVP scope is a
+            // full-screen presentation, the same "no partial-fill layout
+            // beyond what proposedSize already buys" call ScrollView's own
+            // doc comment already made for its viewport.
+            let presentedBox = place(presented, at: origin, size: size, context: context)
+            return LayoutBox(id: modal.id, frame: frame, children: [contentBox, presentedBox])
         }
     }
 }

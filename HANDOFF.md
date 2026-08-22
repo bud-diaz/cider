@@ -11,18 +11,18 @@ session, whether or not the milestone finished.
 
 Part A (Stage 1 close-out), **B1** (Image), **B2** (layout/rendering
 foundations), **B3** (host input plumbing), **B4** (ScrollView), **B5**
-(TextField) and **B6** (List) are done. **B7** (navigation stack) is
-implemented and pushed, CI not yet checked by this session — check its
-result before starting B8. B8 (modal/presentation) and B9 (reference app
-+ Stage 2 exit criterion) remain.
+(TextField), **B6** (List) and **B7** (navigation stack) are done. **B8**
+(modal/presentation surface) is implemented and pushed, CI not yet
+checked by this session — check its result before starting **B9**
+(reference app + Stage 2 exit criterion), the last milestone in this plan.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
 CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3
-(8676a50), B4 (52590ca) and B5 (a91f40f). B6's first push (db2a5df)
-**failed CI** — the first real test failure this plan has hit; the fix
-(31c3f79) came back green (run 32581743172). B7's push has not been
-checked yet by this session — check it before building B8 on top.
+(8676a50), B4 (52590ca), B5 (a91f40f) and B7 (0ec9d66). B6's first push
+(db2a5df) **failed CI** — the first real test failure this plan has hit;
+the fix (31c3f79) came back green (run 32581743172). B8's push has not
+been checked yet by this session — check it before building B9 on top.
 
 **Caveat carried from B3, still true, now more relevant**: CI's `swift
 build`/`swift test` compile the X11 C shim but never execute it — every
@@ -359,6 +359,76 @@ confirm actual typing works before this is trusted end-to-end.
     the stack's full frame, not its own smaller size) and
     `layoutCentered` (fills bounds for a navigation-stack root instead
     of centring).
+- **B8** — modal/presentation surface, reusing B7's "fill via proposedSize"
+  and B2's clip primitive rather than adding anything new to either:
+  - `ModalPresenterNode` (`ui/Sources/CiderUITree/UINode.swift`) holds
+    `content: UINode` (always present) and `presented: UINode?` (nil
+    most of the time — the same "no history, just what's-active-right-now"
+    shape `NavigationStackNode` uses, `CiderState<Bool>`-backed via a
+    binding rather than stored in the tree). It also carries its own
+    `overlayColor: Color`, set by the compatibility-layer `Modal` view
+    from `Theme.modalOverlayColor` — `RenderTree.swift` lives in the
+    `CiderUITree` module, which `CiderUI` (and its `Theme`) *depends on*,
+    not the other way around, so the dim colour has to travel on the node
+    the same way `ButtonNode.backgroundColor` does, not be looked up by
+    name at render time. (First-draft mistake, caught before it was ever
+    pushed: tried referencing `Theme.modalOverlayColor` straight from
+    `RenderTree.swift` and it doesn't compile — wrong module direction.)
+  - `LayoutEngine.measure`'s `.modal` case fills a proposed size exactly
+    like `.navigationStack`'s does (`proposedSize ?? measure(content,
+    ...)`), for the same reason: without it, an app whose only content is
+    a `Modal` would size its base content — and the overlay, which reuses
+    that same frame — to the base's own small intrinsic size instead of
+    the safe area, and a dim overlay that doesn't cover the screen isn't
+    a dim overlay. `presented` never influences the measured size, the
+    same reasoning a button's pressed colour doesn't affect its size
+    (regression-covered: `testModalMeasureIgnoresPresentedContentEntirely`).
+  - `LayoutEngine.place`'s `.modal` case places `content` at the full
+    given frame (so a modal-wrapped screen is top-anchored the same way a
+    navigation-stack screen is — consistent, not a new inconsistency),
+    and, when `presented` exists, places it at that *same* frame — MVP
+    scope is a full-screen presentation, not a partial-height sheet,
+    which would need bounded-but-smaller-than-container layout this
+    pipeline doesn't have.
+  - `RenderTreeBuilder.append`'s `.modal` case draws `content` first,
+    then — only if presenting — a dim `fillRect` (clip-intersected the
+    same way a scroll viewport's frame is) and a `pushClip`/`popClip`
+    pair around `presented`, appended after it. Painter's order alone
+    gives the right z-order for free, the same way it already does for a
+    button's label over its background. The dim overlay also publishes
+    an *enabled* `HitRegion` with no registered action — that's what
+    stops `hitTest`'s reversed scan from reaching the base content's
+    button underneath once something is presented; a `disabled` region
+    would have let the scan fall through past it instead.
+  - `compatibility/Sources/CiderUI/Modal.swift` — new view,
+    `Modal(_ isPresented: CiderState<Bool>, content:, presenting:)`.
+    No dismiss action is built in — presented content sets
+    `isPresented.wrappedValue = false` itself from an ordinary `Button`,
+    the same way `NavigationView`'s pushed screens pop themselves. Base
+    and presented content each get their own numbering root
+    (`id.child(0)`/`id.child(1)`) rather than sharing `id` the way a
+    single-child wrapper like `ScrollView` does — two independent
+    `withChildren(of:)` calls against the same parent would otherwise
+    hand out colliding paths ("id/0", "id/1", ...) to two different
+    views.
+  - Plan deviation: the plan's B8 text says "reuses B7's screen-stack
+    state shape." Implemented with a plain `CiderState<Bool>` instead —
+    a modal has exactly two states (showing or not), not a stack of
+    screens, so `[any CiderView]` would carry a stack API for a value
+    that's never more than one deep. Simpler, and there is nothing to
+    generalize from yet since B9 is the only remaining consumer.
+  - Tests: `UI-MODAL-001` (5 cases: lowering shape, nothing-presented
+    draws only the base, presenting draws the overlay and presented
+    content in the right paint order, a tap on the dimmed area doesn't
+    reach the base, dismissing hides the presented content) in
+    `tests/conformance/ConformanceTests.swift` +
+    `ModalTestApp`/`ModalDetailScreen` in `ConformanceHarness.swift`.
+    Plus `LayoutTests.swift` coverage for `.modal`'s `measure` (fills a
+    proposed size / falls back to intrinsic / ignores `presented`
+    entirely), `place` (content at the full frame, presented at the same
+    frame, no second child box when nothing's presented) and
+    `layoutCentered` (fills bounds for a modal root instead of
+    centring).
 
 ## Deviations
 
@@ -446,6 +516,4 @@ Implemented by this plan:
 - `UI-TEXTFIELD-001` (B5)
 - `UI-LIST-001` (B6)
 - `NAV-PUSH-001`, `NAV-POP-001` (B7)
-
-Reserved, not yet implemented:
 - `UI-MODAL-001` (B8)
