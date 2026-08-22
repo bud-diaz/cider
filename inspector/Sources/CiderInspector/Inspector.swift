@@ -40,6 +40,8 @@ public enum Inspector {
             line += "  viewport=\(format(scroll.viewportSize.width))x\(format(scroll.viewportSize.height))"
         case .textField(let field):
             line += "  \(quoted(field.text))"
+        case .navigationStack:
+            break
         }
 
         var lines = [line]

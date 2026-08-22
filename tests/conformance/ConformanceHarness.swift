@@ -152,6 +152,36 @@ struct ListTestApp: CiderApp {
     }
 }
 
+/// A screen pushed onto the navigation stack, with a way back -- for the
+/// navigation conformance tests. Holds the same `CiderState` binding the
+/// root screen does, the same reasoning `TextField` binds one -- there's no
+/// other channel for a pushed screen to reach the path that put it there.
+struct NavigationDetailScreen: CiderView {
+    let path: CiderState<[any CiderView]>
+
+    var body: some CiderView {
+        VStack {
+            Text("Detail")
+            Button("Back") { path.wrappedValue.removeLast() }
+        }
+    }
+}
+
+/// A root screen that pushes one screen, and the screen it pushes -- for
+/// the navigation conformance test.
+struct NavigationTestApp: CiderApp {
+    @CiderState var path: [any CiderView] = []
+
+    var body: some CiderView {
+        NavigationView($path) {
+            VStack {
+                Text("Root")
+                Button("Go") { path.append(NavigationDetailScreen(path: $path)) }
+            }
+        }
+    }
+}
+
 /// A short viewport over content taller than it, with a button positioned so
 /// it starts out entirely scrolled out of view -- for the scroll conformance
 /// test, including whether hit-testing respects the clip.

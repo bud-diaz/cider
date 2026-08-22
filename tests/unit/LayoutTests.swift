@@ -66,6 +66,10 @@ final class LayoutTests: XCTestCase {
         )
     }
 
+    private func navigationStack(_ id: String, content: UINode) -> UINode {
+        .navigationStack(NavigationStackNode(id: NodeID(path: id), content: content))
+    }
+
     private func image(_ id: String, width: Int, height: Int) -> UINode {
         .image(
             ImageNode(
@@ -156,6 +160,18 @@ final class LayoutTests: XCTestCase {
 
         let size = LayoutEngine.measure(scroll, context: context)
         XCTAssertEqual(size, Size(width: 90, height: 50))
+    }
+
+    func testNavigationStackFillsAProposedSizeRegardlessOfItsContentsIntrinsicSize() {
+        let nav = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let size = LayoutEngine.measure(nav, proposedSize: Size(width: 390, height: 763), context: context)
+        XCTAssertEqual(size, Size(width: 390, height: 763))
+    }
+
+    func testNavigationStackFallsBackToItsContentsIntrinsicSizeWhenNothingIsProposed() {
+        let nav = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let size = LayoutEngine.measure(nav, context: context)
+        XCTAssertEqual(size, LayoutEngine.measure(text("n/0", "hi", size: 10), context: context))
     }
 
     // MARK: - Placement
@@ -266,6 +282,26 @@ final class LayoutTests: XCTestCase {
         let box = LayoutEngine.place(node, at: .zero, size: Size(width: 90, height: 50), context: context)
 
         XCTAssertGreaterThan(box.children[0].frame.height, box.frame.height)
+    }
+
+    func testNavigationStackPlacesItsContentAtTheStacksFullFrameNotItsOwnIntrinsicSize() {
+        let nav = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let box = LayoutEngine.place(nav, at: Point(x: 5, y: 9), size: Size(width: 390, height: 763), context: context)
+
+        XCTAssertEqual(box.frame, Rect(x: 5, y: 9, width: 390, height: 763))
+        XCTAssertEqual(box.children.count, 1)
+        // Unlike a scroll view's content, the active screen fills the frame
+        // it was placed at rather than being placed at its own smaller size.
+        XCTAssertEqual(box.children[0].frame, Rect(x: 5, y: 9, width: 390, height: 763))
+    }
+
+    func testLayoutCenteredFillsBoundsForANavigationStackRootInsteadOfCentering() {
+        let node = navigationStack("n", content: text("n/0", "hi", size: 10))
+        let bounds = Rect(x: 0, y: 47, width: 390, height: 763)
+
+        let box = LayoutEngine.layoutCentered(node, in: bounds, context: context)
+
+        XCTAssertEqual(box.frame, bounds, "a navigation stack root fills the safe area rather than centring")
     }
 
     func testBoxLookupFindsNestedNodes() {

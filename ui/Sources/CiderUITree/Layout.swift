@@ -87,21 +87,34 @@ public enum LayoutEngine {
             // depend on the text's content.
             let lineHeight = context.textEngine.metrics(for: field.font).lineHeight
             return Size(width: field.width, height: lineHeight + field.padding.vertical)
+
+        case .navigationStack(let nav):
+            // Fills whatever it's proposed -- the screen underneath a
+            // navigation stack always occupies the whole safe area, the same
+            // way a scroll view's viewport is explicit rather than intrinsic.
+            // Falls back to measuring the active screen when nothing was
+            // proposed (e.g. a navigation stack nested inside a container
+            // that doesn't propose a size); that fallback is intrinsic, not
+            // "fill", so it only kicks in outside the root path.
+            return proposedSize ?? measure(nav.content, context: context)
         }
     }
 
-    /// Places `node` at its measured size inside `bounds`, centred on both axes.
+    /// Places `node` inside `bounds`, proposing the full bounds as the size.
     ///
-    /// The runtime uses this for the root: an application's content sits in the
-    /// middle of the safe area. It is a placeholder for real root behaviour --
-    /// filling, alignment modifiers and scrolling all belong to Stage 2 -- and it
-    /// is documented as such so nobody mistakes it for a considered default.
+    /// The runtime uses this for the root. Most node kinds ignore the proposal
+    /// and report their own intrinsic size, in which case this centres that
+    /// size within `bounds` -- still a placeholder for a real root that would
+    /// also offer alignment modifiers. A root that *does* consult the
+    /// proposal (`NavigationStackNode`, see its `measure` case) fills the
+    /// bounds instead: its measured size equals `bounds.size`, so the
+    /// centring below reduces to placing it flush at the origin.
     public static func layoutCentered(
         _ node: UINode,
         in bounds: Rect,
         context: LayoutContext
     ) -> LayoutBox {
-        let size = measure(node, context: context)
+        let size = measure(node, proposedSize: bounds.size, context: context)
         let origin = Point(
             x: bounds.minX + (bounds.width - size.width) / 2,
             y: bounds.minY + (bounds.height - size.height) / 2
@@ -162,6 +175,14 @@ public enum LayoutEngine {
             let contentSize = measure(scroll.content, context: context)
             let contentBox = place(scroll.content, at: origin, size: contentSize, context: context)
             return LayoutBox(id: scroll.id, frame: frame, children: [contentBox])
+
+        case .navigationStack(let nav):
+            // Unlike a scroll view's content, the active screen fills the
+            // navigation stack's own frame -- there's nothing to scroll to,
+            // it's the whole point that the screen occupies all the space it
+            // was given.
+            let contentBox = place(nav.content, at: origin, size: size, context: context)
+            return LayoutBox(id: nav.id, frame: frame, children: [contentBox])
         }
     }
 }

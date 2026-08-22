@@ -305,6 +305,25 @@ public enum RenderTreeBuilder {
             if let hitFrame {
                 tree.hitRegions.append(HitRegion(id: field.id, frame: hitFrame, isEnabled: true))
             }
+
+        case .navigationStack(let nav):
+            // A transparent passthrough -- it draws nothing and clips
+            // nothing of its own. The active screen already fills the whole
+            // frame (`LayoutEngine.place`'s `.navigationStack` case), so
+            // there's no viewport smaller than the content to clip against,
+            // unlike a scroll view.
+            guard let contentLayout = layout.children.first else { break }
+            append(
+                node: nav.content,
+                layout: contentLayout,
+                pressedNode: pressedNode,
+                focusedNode: focusedNode,
+                scrollOffsets: scrollOffsets,
+                offset: offset,
+                clip: clip,
+                context: context,
+                into: &tree
+            )
         }
     }
 }

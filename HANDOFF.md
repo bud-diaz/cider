@@ -11,19 +11,18 @@ session, whether or not the milestone finished.
 
 Part A (Stage 1 close-out), **B1** (Image), **B2** (layout/rendering
 foundations), **B3** (host input plumbing), **B4** (ScrollView), **B5**
-(TextField) and **B6** (List) are done. Next up: **B7** (navigation
-stack), which needs a real replacement for `layoutCentered`'s
-placeholder root-layout behavior -- read that function's doc comment in
-`ui/Sources/CiderUITree/Layout.swift` before starting; B4 and B5 both
-explicitly deferred "fill parent" layout to this milestone.
+(TextField) and **B6** (List) are done. **B7** (navigation stack) is
+implemented and pushed, CI not yet checked by this session — check its
+result before starting B8. B8 (modal/presentation) and B9 (reference app
++ Stage 2 exit criterion) remain.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
 CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3
 (8676a50), B4 (52590ca) and B5 (a91f40f). B6's first push (db2a5df)
-**failed CI** — the first real test failure this plan has hit. Root
-cause and fix below in Done/B6; check the fix commit's CI result before
-starting B7.
+**failed CI** — the first real test failure this plan has hit; the fix
+(31c3f79) came back green (run 32581743172). B7's push has not been
+checked yet by this session — check it before building B8 on top.
 
 **Caveat carried from B3, still true, now more relevant**: CI's `swift
 build`/`swift test` compile the X11 C shim but never execute it — every
@@ -307,6 +306,59 @@ confirm actual typing works before this is trusted end-to-end.
     first real CI failure this plan has hit — the story for every
     milestone before this was "compiles and passes first try," and it's
     worth flagging that CI is doing real work, not rubber-stamping.
+- **B7** — navigation stack, all five ADR-0003 touchpoints plus a real
+  root-layout replacement:
+  - `NavigationStackNode` (`ui/Sources/CiderUITree/UINode.swift`) holds
+    only `content: UINode` — no screen-history array. Which screen is
+    active is interaction state, the same reasoning `ButtonNode` carries
+    no closure and `TextFieldNode` carries no callback: it lives in
+    `CiderState`, on the app, passed down as a `CiderState<[any
+    CiderView]>` binding exactly the way `TextField`'s bound text does.
+    This sidesteps `CiderAppAdapter.attachState`'s reflection walk only
+    covering the app's own stored properties (see its doc comment)
+    rather than extending that walk to nested views, which would be a
+    bigger, riskier change for no other Stage 2 need.
+  - `LayoutEngine.measure`'s `.navigationStack` case is the first
+    consumer of B2's `proposedSize` parameter, four milestones after it
+    was added inert: `proposedSize ?? measure(content, ...)` — fills
+    whatever it's proposed, falls back to the content's intrinsic size
+    only if nothing was proposed (e.g. nested inside a non-proposing
+    container, not the normal root path). `layoutCentered` now passes
+    `proposedSize: bounds.size`, so a navigation-stack root's measured
+    size equals `bounds.size` and the existing centring arithmetic
+    reduces to placing it flush at the origin — *no* new root-layout
+    code path, just feeding the existing one a size that makes it
+    degenerate to "fill." Every other node kind still ignores
+    `proposedSize` and is unaffected (regression-covered by the
+    existing `LayoutTests.swift` cases, unchanged).
+  - `RenderTreeBuilder.append`'s `.navigationStack` case is a transparent
+    passthrough: no draw command, no clip, just recurses into `content`
+    at the same `offset`/`clip` it received. There's nothing to clip
+    against — the active screen already fills the whole frame, unlike a
+    scroll view's content which can exceed its viewport.
+  - `compatibility/Sources/CiderUI/NavigationView.swift` — new view,
+    `NavigationView(_ path: CiderState<[any CiderView]>, root:)`, shows
+    `path.wrappedValue.last ?? root`. No `NavigationLink` type: push/pop
+    are just `path.append(...)`/`path.wrappedValue.removeLast()` inside
+    an ordinary `Button` action, the same as any other state mutation.
+    Wraps a multi-node screen body the same way `Lowering.scene` wraps
+    the app's own top level (a `/screen`-suffixed VStack), for the same
+    reason `List`/`ScrollView` wrap their single child.
+  - Tests: `NAV-PUSH-001` (3 cases: lowering shape, the active screen
+    filling the safe area instead of being centred at its intrinsic
+    size, push replaces the screen rather than layering under it) and
+    `NAV-POP-001` (2 cases: pop returns to the screen underneath, and a
+    push-then-pop cycle returns to the *same structural identity* the
+    root had — documented as intentional, matching ADR 0003's existing
+    index-based-identity limitation, not a bug) in
+    `tests/conformance/ConformanceTests.swift` +
+    `NavigationTestApp`/`NavigationDetailScreen` in
+    `ConformanceHarness.swift`. Plus `LayoutTests.swift` unit coverage
+    for `.navigationStack`'s `measure` (fills a proposed size / falls
+    back to intrinsic with none proposed), `place` (content placed at
+    the stack's full frame, not its own smaller size) and
+    `layoutCentered` (fills bounds for a navigation-stack root instead
+    of centring).
 
 ## Deviations
 
@@ -393,7 +445,7 @@ Implemented by this plan:
 - `UI-SCROLL-001` (B4)
 - `UI-TEXTFIELD-001` (B5)
 - `UI-LIST-001` (B6)
+- `NAV-PUSH-001`, `NAV-POP-001` (B7)
 
 Reserved, not yet implemented:
-- `NAV-PUSH-001`, `NAV-POP-001` (B7)
 - `UI-MODAL-001` (B8)

@@ -18,6 +18,8 @@
 //    UI-SCROLL-001     ScrollView clips its content and scrolling moves it, clamped
 //    UI-TEXTFIELD-001  TextField gains focus on tap and edits its bound state
 //    UI-LIST-001       List's rows keep source order and scroll like a ScrollView
+//    NAV-PUSH-001      NavigationView lowers to a NavigationStackNode and pushes screens
+//    NAV-POP-001       popping a navigation stack returns to the screen underneath
 
 import XCTest
 
@@ -816,5 +818,95 @@ final class ConformanceTests: XCTestCase {
         try harness.tap(at: Point(x: visibleRow.frame.midX, y: visibleRow.frame.midY))
 
         XCTAssertTrue(harness.drawnStrings().contains("Last: 9"), "tapping the visible row must fire row 9's action")
+    }
+
+    // MARK: - NAV-PUSH-001
+
+    /// NAV-PUSH-001: a `NavigationView` becomes one NavigationStackNode whose
+    /// content is the root screen when nothing has been pushed yet.
+    func testNAV_PUSH_001_navigationViewLowersToANavigationStackNode() throws {
+        let scene = Lowering.scene(from: NavigationTestApp().body)
+
+        guard case .navigationStack(let nav) = scene.root else {
+            return XCTFail("expected a NavigationStackNode, got \(scene.root.kindName)")
+        }
+        guard case .vstack(let root) = nav.content else {
+            return XCTFail("expected the root screen's VStack as content, got \(nav.content.kindName)")
+        }
+        XCTAssertEqual(root.children.map(\.kindName), ["TextNode", "ButtonNode"])
+    }
+
+    /// NAV-PUSH-001: unlike every other node kind, the active screen fills
+    /// the whole safe area rather than being sized to its own content and
+    /// centred within it -- `layoutCentered` proposing its own bounds is
+    /// what makes this happen (see `LayoutEngine.measure`'s
+    /// `.navigationStack` case).
+    func testNAV_PUSH_001_theActiveScreenFillsTheSafeArea() throws {
+        let harness = try ConformanceHarness(NavigationTestApp())
+        try harness.launch()
+
+        let box = try XCTUnwrap(harness.runtime.currentLayout)
+        let safeArea = harness.runtime.deviceProfile.safeAreaBounds
+        XCTAssertEqual(box.frame.width, safeArea.width, accuracy: 1e-9)
+        XCTAssertEqual(box.frame.height, safeArea.height, accuracy: 1e-9)
+    }
+
+    /// NAV-PUSH-001: tapping a button that appends to the bound path pushes
+    /// a new screen -- the next frame shows it in place of the root, not
+    /// layered underneath it (there is no screen history in the tree, only
+    /// ever the one currently on top; see `NavigationStackNode`'s doc
+    /// comment).
+    func testNAV_PUSH_001_tappingPushesANewScreen() throws {
+        let harness = try ConformanceHarness(NavigationTestApp())
+        try harness.launch()
+
+        XCTAssertTrue(harness.drawnStrings().contains("Root"))
+        XCTAssertFalse(harness.drawnStrings().contains("Detail"))
+
+        let go = try harness.onlyButton()
+        try harness.tap(at: Point(x: go.frame.midX, y: go.frame.midY))
+
+        XCTAssertTrue(harness.drawnStrings().contains("Detail"))
+        XCTAssertFalse(
+            harness.drawnStrings().contains("Root"),
+            "the root screen is replaced by the pushed one, not layered under it"
+        )
+    }
+
+    // MARK: - NAV-POP-001
+
+    /// NAV-POP-001: tapping a button that removes the last path entry pops
+    /// back to the screen underneath -- the root, here.
+    func testNAV_POP_001_tappingPopsBackToThePreviousScreen() throws {
+        let harness = try ConformanceHarness(NavigationTestApp())
+        try harness.launch()
+
+        let go = try harness.onlyButton()
+        try harness.tap(at: Point(x: go.frame.midX, y: go.frame.midY))
+        XCTAssertTrue(harness.drawnStrings().contains("Detail"))
+
+        let back = try harness.onlyButton()
+        try harness.tap(at: Point(x: back.frame.midX, y: back.frame.midY))
+
+        XCTAssertTrue(harness.drawnStrings().contains("Root"))
+        XCTAssertFalse(harness.drawnStrings().contains("Detail"))
+    }
+
+    /// NAV-POP-001: a pushed screen and the root occupy the same structural
+    /// position (each is the navigation stack's one `content` child), so a
+    /// pop returns the same structural identity the root had before the
+    /// push -- consistent with, not a new instance of, the index-based
+    /// identity scheme every other container already uses (ADR 0003).
+    func testNAV_POP_001_poppingReturnsTheSameStructuralIdentityTheRootHad() throws {
+        let harness = try ConformanceHarness(NavigationTestApp())
+        try harness.launch()
+        let rootButtonID = try harness.onlyButton().id
+
+        try harness.tap(at: try harness.center(of: rootButtonID))
+        let detailButtonID = try harness.onlyButton().id
+        try harness.tap(at: try harness.center(of: detailButtonID))
+        let poppedButtonID = try harness.onlyButton().id
+
+        XCTAssertEqual(poppedButtonID, rootButtonID)
     }
 }

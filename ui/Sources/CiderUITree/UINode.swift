@@ -187,11 +187,30 @@ public struct TextFieldNode: Equatable, Sendable {
     }
 }
 
+/// The currently active screen of a navigation stack, filling whatever space
+/// it's given.
+///
+/// There is no array of screens here -- only ever the *one* currently on
+/// top, the same reasoning `ButtonNode` carries no closure: which screen is
+/// active is interaction state (`CiderState`-backed, living in the app,
+/// the same way `TextField`'s bound text does), not something the normalized
+/// tree needs to represent as history. Pushing or popping just changes what
+/// `content` lowers to on the next rebuild.
+public struct NavigationStackNode: Equatable, Sendable {
+    public var id: NodeID
+    public var content: UINode
+
+    public init(id: NodeID, content: UINode) {
+        self.id = id
+        self.content = content
+    }
+}
+
 /// docs/05-implementation-roadmap.md Stage 2 adds scrolling, lists,
 /// navigation and modals on top of the Stage 0/1 set (text, button, stack);
-/// `image`, `scrollView` and `textField` are the first three of those to
-/// land. Per docs/adr/0003-ui-tree-model.md, adding a node kind means
-/// touching this type, `LayoutEngine.measure`, `LayoutEngine.place`,
+/// `image`, `scrollView`, `textField` and `navigationStack` are the first
+/// four of those to land. Per docs/adr/0003-ui-tree-model.md, adding a node
+/// kind means touching this type, `LayoutEngine.measure`, `LayoutEngine.place`,
 /// `RenderTreeBuilder` and `Inspector` -- five places, deliberately, each an
 /// exhaustive switch with no `default:`.
 public indirect enum UINode: Equatable, Sendable {
@@ -201,6 +220,7 @@ public indirect enum UINode: Equatable, Sendable {
     case image(ImageNode)
     case scrollView(ScrollViewNode)
     case textField(TextFieldNode)
+    case navigationStack(NavigationStackNode)
 
     public var id: NodeID {
         switch self {
@@ -210,6 +230,7 @@ public indirect enum UINode: Equatable, Sendable {
         case .image(let node): return node.id
         case .scrollView(let node): return node.id
         case .textField(let node): return node.id
+        case .navigationStack(let node): return node.id
         }
     }
 
@@ -217,6 +238,7 @@ public indirect enum UINode: Equatable, Sendable {
         switch self {
         case .vstack(let node): return node.children
         case .scrollView(let node): return [node.content]
+        case .navigationStack(let node): return [node.content]
         case .text, .button, .image, .textField: return []
         }
     }
@@ -230,6 +252,7 @@ public indirect enum UINode: Equatable, Sendable {
         case .image: return "ImageNode"
         case .scrollView: return "ScrollViewNode"
         case .textField: return "TextFieldNode"
+        case .navigationStack: return "NavigationStackNode"
         }
     }
 
