@@ -1,0 +1,19 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Cider generated files
+.cider/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS / Linux noise
+.DS_Store
+
+# Test output that is not a committed baseline
+/tests/**/Output/

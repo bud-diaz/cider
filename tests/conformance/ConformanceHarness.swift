@@ -1,0 +1,121 @@
+//  Shared machinery for the conformance suite.
+//
+//  Every conformance test drives a real `ApplicationRuntime` over the headless
+//  backend. Testing the layers separately would be easier and would prove less:
+//  the whole point of the suite is that the seams line up, and a bug where the
+//  compatibility layer and the runtime disagree about node identity only shows
+//  up when both are running.
+
+import XCTest
+
+import CiderCore
+import CiderHost
+import CiderHostTesting
+import CiderRuntime
+import CiderUITree
+
+@testable import CiderUI
+
+/// A runtime, its backend and its log, wired together for a test.
+final class ConformanceHarness {
+    let backend: TestingHostBackend
+    let runtime: ApplicationRuntime
+    let logSink = MemoryLogSink()
+
+    init<App: CiderApp>(
+        _ app: App,
+        device: String = "phone-standard",
+        logLevel: LogLevel = .trace
+    ) throws {
+        self.backend = TestingHostBackend()
+        self.runtime = try ApplicationRuntime(
+            descriptor: LaunchDescriptor(
+                appID: "dev.cider.conformance",
+                appName: "Conformance",
+                appEntry: "\(App.self)",
+                minimumCompatibility: "0.1",
+                deviceProfileName: device,
+                permissions: .none,
+                logLevel: logLevel
+            ),
+            application: CiderAppAdapter(app: app),
+            backend: backend,
+            logSink: logSink
+        )
+    }
+
+    func launch() throws {
+        try runtime.launch()
+    }
+
+    /// Delivers events and lets the runtime process them.
+    func deliver(_ events: [HostEvent]) throws {
+        backend.send(events)
+        try runtime.pump()
+    }
+
+    /// A complete tap: press and release at the same point.
+    func tap(at point: Point) throws {
+        try deliver([
+            .pointerDown(location: point, button: .primary),
+            .pointerUp(location: point, button: .primary),
+        ])
+    }
+
+    /// The centre of a node's hit region, in device pixels.
+    ///
+    /// The testing window is sized from the device profile at scale 1, so window
+    /// pixels and logical points coincide. Any test that needs them to differ
+    /// says so explicitly.
+    func center(of id: NodeID) throws -> Point {
+        let tree = try XCTUnwrap(runtime.currentRenderTree, "no frame has been rendered")
+        let region = try XCTUnwrap(
+            tree.hitRegions.first { $0.id == id },
+            "no hit region for \(id); regions: \(tree.hitRegions.map(\.id.path))"
+        )
+        return Point(x: region.frame.midX, y: region.frame.midY)
+    }
+
+    /// The single button in the current frame.
+    func onlyButton() throws -> HitRegion {
+        let tree = try XCTUnwrap(runtime.currentRenderTree)
+        XCTAssertEqual(tree.hitRegions.count, 1, "this helper expects exactly one button")
+        return try XCTUnwrap(tree.hitRegions.first)
+    }
+
+    /// Every string the current frame draws, in painter's order.
+    func drawnStrings() -> [String] {
+        guard let tree = runtime.currentRenderTree else { return [] }
+        return tree.commands.compactMap { command in
+            if case .text(let content, _, _, _) = command { return content }
+            return nil
+        }
+    }
+}
+
+// MARK: - Applications used by the suite
+
+/// The reference application: a title, a button and a counter.
+struct CounterApp: CiderApp {
+    @CiderState var count = 0
+
+    var body: some CiderView {
+        VStack(spacing: 24) {
+            Text("Cider Demo")
+                .font(size: 28, weight: .bold)
+
+            Button("Press Me") {
+                count += 1
+            }
+
+            Text("Count: \(count)")
+        }
+    }
+}
+
+/// A single line of text, for the text conformance test.
+struct TextOnlyApp: CiderApp {
+    var body: some CiderView {
+        Text("Hello")
+    }
+}

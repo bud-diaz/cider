@@ -1,0 +1,72 @@
+# Changelog
+
+All notable changes to Cider are recorded here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Cider is pre-alpha and does not yet follow semantic versioning; version numbers
+before `0.1.0` carry no compatibility promise, and
+`docs/04-compatibility-specification.md` section 7 describes the policy that
+takes effect once one exists.
+
+## [Unreleased]
+
+### Added
+
+**Toolchain**
+
+- `cider doctor` — checks host OS, architecture, Swift version, C compiler,
+  pkg-config, the X11/FreeType/fontconfig development packages, and `DISPLAY`.
+  Failures carry an actionable remedy; unverifiable checks report themselves as
+  unverified rather than passing.
+- `cider build` — project discovery, manifest validation, SwiftPM build
+  orchestration, artifact resolution.
+- `cider run` — build, device-profile resolution, launch-descriptor generation,
+  subprocess launch.
+- `Cider.yaml` manifest with a project-owned YAML-subset parser: line-numbered
+  diagnostics, unknown keys rejected, every problem reported at once.
+- Versioned launch descriptor as the CLI-to-runtime contract.
+
+**Runtime**
+
+- `ApplicationRuntime` — lifecycle, event loop, invalidation, render scheduling,
+  logging, device profile.
+- `Touch` abstraction and pointer-to-touch translation, including letterbox
+  offset handling.
+- Hit testing, press tracking, and drag-off cancellation.
+- Five log levels on two channels, so developer output stays distinguishable
+  from Cider's own.
+- Structured `Diagnostic` type carrying what failed, where, why, and how to fix
+  it.
+
+**UI**
+
+- `CiderApp`, `CiderView`, `Text`, `Button`, `VStack`, `@CiderState`,
+  `CiderViewBuilder`.
+- Normalized UI tree (`TextNode`, `ButtonNode`, `VStackNode`) with stable
+  structural identity.
+- Two-pass layout engine.
+- Render tree of ordered draw commands plus hit regions.
+- Software rasterizer with analytically antialiased rounded rectangles and
+  alpha-composited glyph masks.
+
+**Hosts**
+
+- Abstract host interfaces: `HostBackend`, `HostWindow`, `HostEvent`,
+  `TextEngine`.
+- Linux backend over X11 and FreeType/fontconfig, behind two thin C shims.
+- Headless testing backend with a deterministic text engine.
+- `CiderHostBootstrap` as the single point of backend selection.
+
+**Other**
+
+- `phone-standard` device profile.
+- Textual inspector dumps of the UI tree and render tree.
+- `examples/hello-cider` reference application.
+- 103 tests across unit, conformance, integration and visual-regression suites.
+- ADRs 0001–0005.
+
+### Known limitations
+
+Listed in full under "Current limitations" in `README.md`. In short: three UI
+node kinds, no services, single-line left-to-right text, one device profile,
+Linux and X11 only.
