@@ -1,0 +1,196 @@
+//  The software rasterizer.
+//
+//  This is shared code on purpose. If each backend drew its own rectangles and
+//  composited its own glyphs, "the same application" would look different on
+//  Linux and Windows and the visual baselines in docs/06-testing-strategy.md
+//  would have to be captured per host. Backends supply glyph coverage and a
+//  place to put pixels; everything between those two points happens here.
+
+import CiderCore
+
+public enum Rasterizer {
+
+    /// Draws `tree` into a canvas sized for `pixelWidth` x `pixelHeight`.
+    ///
+    /// `scale` converts logical points to device pixels. It is passed
+    /// explicitly rather than read from the text engine so that a caller
+    /// rendering at a different resolution -- a screenshot at 2x, say -- cannot
+    /// get the two out of step silently.
+    public static func render(
+        _ tree: RenderTree,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        scale: Double,
+        textEngine: TextEngine
+    ) -> Canvas {
+        var canvas = Canvas(width: pixelWidth, height: pixelHeight, fill: tree.backgroundColor)
+
+        for command in tree.commands {
+            switch command {
+            case .fillRect(let rect, let color, let cornerRadius):
+                fill(
+                    rect: rect,
+                    color: color,
+                    cornerRadius: cornerRadius,
+                    scale: scale,
+                    into: &canvas
+                )
+
+            case .text(let content, let baselineOrigin, let font, let color):
+                draw(
+                    text: content,
+                    baselineOrigin: baselineOrigin,
+                    font: font,
+                    color: color,
+                    scale: scale,
+                    textEngine: textEngine,
+                    into: &canvas
+                )
+            }
+        }
+
+        return canvas
+    }
+
+    // MARK: - Rectangles
+
+    /// Fills a rounded rectangle with analytic antialiasing.
+    ///
+    /// Coverage comes from the signed distance to the shape's boundary, mapped
+    /// across one pixel. That is cheaper than supersampling, and -- because it is
+    /// a closed-form function of the geometry -- it produces identical output on
+    /// every host, which supersampling with a jittered pattern would not.
+    static func fill(
+        rect: Rect,
+        color: Color,
+        cornerRadius: Double,
+        scale: Double,
+        into canvas: inout Canvas
+    ) {
+        guard rect.width > 0, rect.height > 0, color.alpha > 0 else { return }
+
+        let px = rect.minX * scale
+        let py = rect.minY * scale
+        let pw = rect.width * scale
+        let ph = rect.height * scale
+        // A radius larger than half the shorter side would invert the corner arc.
+        let radius = min(cornerRadius * scale, min(pw, ph) / 2)
+
+        // One pixel of slop so the antialiased edge is not clipped away.
+        let minX = max(0, Int((px - 1).rounded(.down)))
+        let minY = max(0, Int((py - 1).rounded(.down)))
+        let maxX = min(canvas.width - 1, Int((px + pw + 1).rounded(.up)))
+        let maxY = min(canvas.height - 1, Int((py + ph + 1).rounded(.up)))
+        guard minX <= maxX, minY <= maxY else { return }
+
+        let centerX = px + pw / 2
+        let centerY = py + ph / 2
+        let halfWidth = pw / 2
+        let halfHeight = ph / 2
+
+        for y in minY...maxY {
+            for x in minX...maxX {
+                // Sample at the pixel centre.
+                let sampleX = Double(x) + 0.5
+                let sampleY = Double(y) + 0.5
+
+                let distance = roundedRectDistance(
+                    dx: abs(sampleX - centerX),
+                    dy: abs(sampleY - centerY),
+                    halfWidth: halfWidth,
+                    halfHeight: halfHeight,
+                    radius: radius
+                )
+
+                // distance < 0 is inside. Map [-0.5, 0.5] px to coverage [1, 0].
+                let coverage = min(1.0, max(0.0, 0.5 - distance))
+                if coverage > 0 {
+                    canvas.blend(x: x, y: y, color: color, coverage: coverage)
+                }
+            }
+        }
+    }
+
+    /// Signed distance from a point to a rounded rectangle centred at the
+    /// origin, given the point's absolute offsets. Negative inside.
+    private static func roundedRectDistance(
+        dx: Double,
+        dy: Double,
+        halfWidth: Double,
+        halfHeight: Double,
+        radius: Double
+    ) -> Double {
+        // Offset from the corner circle's centre, clamped at zero on each axis:
+        // inside the straight edges this collapses to the usual box distance.
+        let cornerX = dx - (halfWidth - radius)
+        let cornerY = dy - (halfHeight - radius)
+
+        if cornerX > 0 && cornerY > 0 {
+            return (cornerX * cornerX + cornerY * cornerY).squareRoot() - radius
+        }
+        return max(cornerX, cornerY) - radius
+    }
+
+    // MARK: - Text
+
+    static func draw(
+        text: String,
+        baselineOrigin: Point,
+        font: FontRequest,
+        color: Color,
+        scale: Double,
+        textEngine: TextEngine,
+        into canvas: inout Canvas
+    ) {
+        guard !text.isEmpty, color.alpha > 0 else { return }
+
+        let run = textEngine.shape(text, font: font)
+        let baselineX = baselineOrigin.x * scale
+        let baselineY = baselineOrigin.y * scale
+
+        for glyph in run.glyphs {
+            guard let image = textEngine.image(forGlyph: glyph.glyphID, font: font) else {
+                continue
+            }
+
+            // Round the pen position to whole pixels. Sub-pixel positioning would
+            // look marginally better and would make glyph output depend on
+            // fractional layout values, which is a poor trade for a renderer whose
+            // baselines have to be stable.
+            let penX = Int((baselineX + glyph.xOffset * scale).rounded())
+            let penY = Int(baselineY.rounded())
+
+            let left = penX + image.bearingX
+            let top = penY - image.bearingY
+
+            blit(image: image, atX: left, y: top, color: color, into: &canvas)
+        }
+    }
+
+    /// Composites an 8-bit coverage mask in a single colour.
+    private static func blit(
+        image: GlyphImage,
+        atX left: Int,
+        y top: Int,
+        color: Color,
+        into canvas: inout Canvas
+    ) {
+        guard image.width > 0, image.height > 0 else { return }
+
+        for row in 0..<image.height {
+            let y = top + row
+            guard y >= 0, y < canvas.height else { continue }
+
+            let rowStart = row * image.width
+            for column in 0..<image.width {
+                let x = left + column
+                guard x >= 0, x < canvas.width else { continue }
+
+                let coverage = image.coverage[rowStart + column]
+                guard coverage > 0 else { continue }
+
+                canvas.blend(x: x, y: y, color: color, coverage: Double(coverage) / 255.0)
+            }
+        }
+    }
+}
