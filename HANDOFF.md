@@ -20,8 +20,10 @@ explicitly deferred "fill parent" layout to this milestone.
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
 CI came back green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3
-(8676a50), B4 (52590ca) and B5 (a91f40f). B6 has been pushed for the same
-verification; check its result before starting B7.
+(8676a50), B4 (52590ca) and B5 (a91f40f). B6's first push (db2a5df)
+**failed CI** — the first real test failure this plan has hit. Root
+cause and fix below in Done/B6; check the fix commit's CI result before
+starting B7.
 
 **Caveat carried from B3, still true, now more relevant**: CI's `swift
 build`/`swift test` compile the X11 C shim but never execute it — every
@@ -286,12 +288,25 @@ confirm actual typing works before this is trusted end-to-end.
     List adds no new interaction concept, since B4 and B5 already gave
     clip-aware hit-testing and scrolling to whatever's inside a
     ScrollView's content, for free.
-  - Tests: `UI-LIST-001` (3 cases: lowering shape, row order/count,
+  - Tests: `UI-LIST-001` (3 cases: lowering shape, row order,
     scroll-then-tap-the-newly-visible-row reusing B4's clip-aware
     hit-testing) in `tests/conformance/ConformanceTests.swift` +
     `ListTestApp` in `ConformanceHarness.swift`. No unit tests needed
     beyond the conformance suite, since there's no new layout/render
     code path to test in isolation.
+  - **CI caught a real test bug (not a production code bug) on the
+    first push (db2a5df)**: `testUI_LIST_001_rowsKeepSourceOrder`
+    asserted `hitRegions.count == 10` (one per row), but `ListTestApp`'s
+    viewport is only 30pt tall against a 36pt row height, so B4's
+    clip-aware hit-testing correctly drops every hit region except the
+    one row that's actually (partly) visible at launch — the assertion
+    itself was wrong, not the code it was testing. Fixed by asserting
+    row order via `drawnStrings()` (draw commands aren't clip-filtered,
+    only hit regions are) and changing the count assertion to `== 1`
+    with an explanation, rather than deleting the coverage. This is the
+    first real CI failure this plan has hit — the story for every
+    milestone before this was "compiles and passes first try," and it's
+    worth flagging that CI is doing real work, not rubber-stamping.
 
 ## Deviations
 

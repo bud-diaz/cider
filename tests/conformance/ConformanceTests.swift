@@ -772,16 +772,24 @@ final class ConformanceTests: XCTestCase {
         XCTAssertEqual(rows.children.map(\.kindName), ["TextNode", "TextNode", "TextNode"])
     }
 
-    /// UI-LIST-001: rows keep source order, and each publishes its own hit
-    /// region -- the same structural, index-based identity every other
-    /// container already uses.
+    /// UI-LIST-001: rows keep source order -- the same structural,
+    /// index-based identity every other container already uses. Every row's
+    /// title draws regardless of scroll position (draw commands aren't
+    /// clip-filtered, only hit regions are -- B4's fix), so this reads
+    /// order directly off what's drawn rather than off what's currently
+    /// reachable by touch.
     func testUI_LIST_001_rowsKeepSourceOrder() throws {
         let harness = try ConformanceHarness(ListTestApp())
         try harness.launch()
 
-        XCTAssertEqual(harness.runtime.currentRenderTree?.hitRegions.count, 10, "one hit region per row's button")
         let titles = harness.drawnStrings().filter { $0.hasPrefix("Row ") }
         XCTAssertEqual(titles, (0..<10).map { "Row \($0)" })
+
+        // The 30pt viewport is shorter than one 36pt row, so only the first
+        // row's button is even partly visible at launch -- the rest are
+        // legitimately unreachable until scrolled into view (see the next
+        // test), not a bug in this assertion.
+        XCTAssertEqual(harness.runtime.currentRenderTree?.hitRegions.count, 1)
     }
 
     /// UI-LIST-001: a list scrolls exactly like the ScrollView it's built
