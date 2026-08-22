@@ -64,6 +64,10 @@ public enum Inspector {
                 )
             case .image(let rect, let source):
                 lines.append("\(index)  image \(format(rect)) \(source.width)x\(source.height)")
+            case .pushClip(let rect):
+                lines.append("\(index)  pushClip \(format(rect))")
+            case .popClip:
+                lines.append("\(index)  popClip")
             }
         }
 

@@ -22,6 +22,16 @@ public enum RenderCommand: Equatable, Sendable {
 
     /// A bitmap, placed at `rect`.
     case image(rect: Rect, source: ImageSource)
+
+    /// Intersects `rect` with whatever is currently clipped and makes the
+    /// result active for every command up to the matching `popClip`. Nothing
+    /// emits this yet -- it exists for the scroll viewport and modal overlay
+    /// work later in Stage 2 -- but the rasterizer honours it now, so those
+    /// node kinds are a `RenderTreeBuilder` change, not a rasterizer change.
+    case pushClip(rect: Rect)
+
+    /// Restores the clip that was active before the matching `pushClip`.
+    case popClip
 }
 
 /// An area that can receive a touch, and the node it belongs to.

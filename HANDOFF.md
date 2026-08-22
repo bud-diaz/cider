@@ -9,19 +9,16 @@ session, whether or not the milestone finished.
 
 ## Status
 
-Part A (Stage 1 close-out) and **B1** (Image node) are done. Next up:
-**B2** (layout & rendering foundations: bounded/proposed-size measurement
-+ clipping), then B3 → B9 in the order given in the plan. B2 and B3 (host
-keyboard/scroll events) are prerequisites for B4–B6 — do not start those
-out of order.
+Part A (Stage 1 close-out), **B1** (Image node) and **B2** (layout &
+rendering foundations) are done. Next up: **B3** (host keyboard/scroll
+event plumbing — X11 C shim changes). B2 and B3 are both prerequisites
+for B4–B6 — do not start those out of order.
 
 Note: `swift` is not installed in the container this work was done in, so
 none of this has been build/test-verified locally beyond what CI reports.
-CI on Part A's commit (159f987) came back green (`swift:6.0-noble`,
-debug+release, build+test all passed) — that's real signal the toolchain
-setup and Part A's code are sound. B1 has been pushed for the same CI
-verification but its result wasn't back yet as of this note; check it
-before building B2 on top.
+CI came back green on Part A (159f987) and B1 (1d20d63) — real signal the
+toolchain setup and both are sound. B2 has been pushed for the same
+verification; check its result before starting B3.
 
 ## Done
 
@@ -83,6 +80,28 @@ before building B2 on top.
     `tests/unit/LayoutTests.swift`. **No visual-regression baseline yet**
     — see Open issues; a `VisualRegressionTests.swift` case was written
     and then deliberately reverted rather than committed, see Deviations.
+
+- **B2** — layout & rendering foundations, both items from the plan:
+  - `LayoutEngine.measure` gained `proposedSize: Size? = nil`
+    (`ui/Sources/CiderUITree/Layout.swift`). Deliberately inert: no case
+    consults it yet (nothing in the current node set shrinks or wraps).
+    It's there so B4–B6 are a change confined to the cases that need
+    bounded sizing, not a signature change threaded through every call
+    site again. Every existing call site compiles unchanged since it's
+    defaulted.
+  - Clipping: `RenderCommand.pushClip(rect:)` / `.popClip`
+    (`ui/Sources/CiderUITree/RenderTree.swift`), a clip stack maintained
+    in `Rasterizer.render` (`ui/Sources/CiderUITree/Rasterizer.swift`),
+    and `Rect.intersection(_:)` (`runtime/Sources/CiderCore/Geometry.swift`)
+    to do the actual intersecting. `fill`/`draw(text:)`/`blit`/`draw(image:)`
+    all gained an optional `clip` parameter that clamps their pixel
+    bounds. Nothing emits `pushClip`/`popClip` yet — first consumers are
+    B4 (scroll viewport) and B8 (modal overlay). `Inspector.describe(renderTree:)`
+    got the two new cases.
+  - Tests: `tests/unit/GeometryTests.swift` (intersection cases),
+    `tests/unit/RasterizerClipTests.swift` (new — exact-pixel assertions
+    on push/pop/nesting/unbalanced-pop, no baseline needed since a clip
+    rect's effect is small enough to state directly).
 
 ## Deviations
 

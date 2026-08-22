@@ -74,6 +74,18 @@ public struct Rect: Equatable, Sendable {
             height: height - insets.top - insets.bottom
         )
     }
+
+    /// The overlapping region of `self` and `other`, or `nil` if they don't
+    /// overlap. Used to intersect nested clip rects: a clip stack only ever
+    /// shrinks what is visible, and this is the operation that shrinks it.
+    public func intersection(_ other: Rect) -> Rect? {
+        let x1 = max(minX, other.minX)
+        let y1 = max(minY, other.minY)
+        let x2 = min(maxX, other.maxX)
+        let y2 = min(maxY, other.maxY)
+        guard x1 < x2, y1 < y2 else { return nil }
+        return Rect(x: x1, y: y1, width: x2 - x1, height: y2 - y1)
+    }
 }
 
 /// Per-edge insets, used for safe areas and for padding inside a control.

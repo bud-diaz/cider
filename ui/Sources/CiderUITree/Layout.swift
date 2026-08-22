@@ -36,12 +36,15 @@ public struct LayoutBox: Equatable, Sendable {
 
 public enum LayoutEngine {
 
-    /// Returns the size `node` wants, ignoring any limit.
+    /// Returns the size `node` wants, optionally within `proposedSize`.
     ///
-    /// Nothing in the MVP node set shrinks or wraps, so an unbounded measurement
-    /// is the whole story. When scrolling and text wrapping arrive this gains a
-    /// proposed-size parameter; the two-pass shape does not change.
-    public static func measure(_ node: UINode, context: LayoutContext) -> Size {
+    /// `proposedSize` is accepted but not yet consulted by any case: nothing in
+    /// the current node set shrinks or wraps, so an unbounded measurement is
+    /// still the whole story. The parameter exists so that scrolling, lists and
+    /// text wrapping -- which do need to propose a size to a child -- are a
+    /// change confined to the cases that care, not a signature change threaded
+    /// through every call site again. The two-pass shape does not change.
+    public static func measure(_ node: UINode, proposedSize: Size? = nil, context: LayoutContext) -> Size {
         switch node {
         case .text(let text):
             let run = context.textEngine.shape(text.text, font: text.font)
