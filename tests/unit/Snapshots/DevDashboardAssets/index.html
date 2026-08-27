@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CIDER Dev Dashboard</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div class="dashboard-shell">
+    <header class="ide-titlebar" aria-label="CIDER dev dashboard">
+      <div class="window-controls" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="titlebar-main">
+        <span class="brand-mark">CIDER</span>
+        <span class="file-chip"><span aria-hidden="true">▹</span><span>cider.dev/session.config</span></span>
+      </div>
+      <div class="titlebar-actions">
+        <button id="copySession" class="icon-button" type="button" data-copy-target="sessionSummary" aria-label="Copy session summary">Copy</button>
+        <span id="status" class="status-pill severity-warning">Starting…</span>
+      </div>
+    </header>
+
+    <div class="workspace-grid">
+      <aside class="resource-sidebar" aria-label="Dashboard sections">
+        <div class="sidebar-label">Resources</div>
+        <button class="resource-row active" data-tab="inspector" aria-selected="true" type="button"><span class="row-index">01</span><span><strong>Inspector</strong><small>view tree + render commands</small></span></button>
+        <button class="resource-row" data-tab="network" aria-selected="false" type="button"><span class="row-index">02</span><span><strong>Network</strong><small>CiderHTTP request capture</small></span></button>
+        <button class="resource-row" data-tab="sandbox" aria-selected="false" type="button"><span class="row-index">03</span><span><strong>Sandbox</strong><small>files + JSON preview</small></span></button>
+        <button class="resource-row" data-tab="events" aria-selected="false" type="button"><span class="row-index">04</span><span><strong>Events</strong><small>runtime event stream</small></span></button>
+      </aside>
+
+      <main class="tab-stack">
+        <section id="inspector" class="tab-panel active" aria-labelledby="inspector-title">
+          <div class="editor-window focused-panel">
+            <div class="editor-titlebar"><div class="window-controls small" aria-hidden="true"><span></span><span></span><span></span></div><span id="inspector-title" class="file-chip">Inspector.swiftui.tree</span><span class="editor-action">live</span></div>
+            <div class="pipeline" aria-label="Swift app through Cider runtime into host"><span>Swift app</span><b>↓</b><span>Cider runtime</span><b>↓</b><span>Host</span></div>
+            <div id="tree" class="editor-body line-reader" aria-live="polite"></div>
+            <pre id="commands" class="code-output" aria-label="Render commands"></pre>
+          </div>
+        </section>
+
+        <section id="network" class="tab-panel" aria-labelledby="network-title" hidden>
+          <div class="proof-panel">
+            <div class="proof-header"><span id="network-title">REQUEST CAPTURE</span><span class="header-dots" aria-hidden="true"><i></i><i></i></span></div>
+            <div id="requests" class="proof-body">No CiderHTTP requests captured yet.</div>
+          </div>
+        </section>
+
+        <section id="sandbox" class="tab-panel" aria-labelledby="sandbox-title" hidden>
+          <div class="split-panel">
+            <div class="proof-panel">
+              <div class="proof-header"><span id="sandbox-title">SANDBOX BROWSER</span><button id="resetSandbox" class="danger-action" type="button">Reset sandbox</button></div>
+              <div id="files" class="proof-body">No sandbox files.</div>
+            </div>
+            <div class="editor-window">
+              <div class="editor-titlebar"><div class="window-controls small" aria-hidden="true"><span></span><span></span><span></span></div><span class="file-chip">preview.json</span><span class="editor-action">read-only</span></div>
+              <pre id="preview" class="code-output"></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="events" class="tab-panel" aria-labelledby="events-title" hidden>
+          <div class="proof-panel">
+            <div class="proof-header"><span id="events-title">CLI OUTPUT</span><span class="stream-badge">streaming</span></div>
+            <pre id="eventLog" class="proof-body cli-log"></pre>
+          </div>
+        </section>
+      </main>
+
+      <aside class="status-rail" aria-label="Runtime health">
+        <article class="status-card severity-neutral"><span class="micro-label">Session</span><strong id="sessionSummary">Waiting for runtime snapshot</strong><small>Live state replaces static demo proof.</small></article>
+        <article class="status-card severity-success"><span class="micro-label">Connected</span><strong>Dashboard server</strong><small>Polling APIs every second.</small></article>
+        <article class="status-card severity-warning"><span class="micro-label">Focus</span><strong>Keyboard reachable</strong><small>Hover reveals are mirrored on focus.</small></article>
+      </aside>
+    </div>
+  </div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

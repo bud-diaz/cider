@@ -11,6 +11,7 @@
 //  window and race a real event loop would be a flaky test about threading
 //  rather than a test about behaviour.
 
+import Foundation
 import CiderCore
 import CiderDeviceProfiles
 import CiderHost
@@ -136,6 +137,7 @@ public final class ApplicationRuntime: InvalidationTarget {
             sandbox: descriptor.sandboxDataRoot.isEmpty ? nil : SandboxPaths(root: descriptor.sandboxDataRoot),
             appID: descriptor.appID,
             appName: descriptor.appName,
+            requestCaptureProxyURL: descriptor.requestCaptureProxyURL,
             // Same sink, different channel: developer output interleaves with
             // Cider's in real order while staying visually distinguishable.
             log: log.scoped(to: .application),
@@ -190,6 +192,26 @@ public final class ApplicationRuntime: InvalidationTarget {
         window = nil
         state = .terminated
         log.info("application terminated")
+    }
+
+    /// Simulates the application moving to the background.
+    ///
+    /// Stage 3 services need lifecycle transitions that tests and developer
+    /// tooling can drive without a real operating-system app switcher. The
+    /// runtime continues pumping in background so timers and service callbacks
+    /// can still invalidate state under test.
+    public func enterBackground() {
+        guard state == .foreground else { return }
+        state = .background
+        log.info("application entered background")
+    }
+
+    /// Simulates the application returning to the foreground.
+    public func enterForeground() {
+        guard state == .background else { return }
+        state = .foreground
+        needsRender = true
+        log.info("application entered foreground")
     }
 
     // MARK: - Events
@@ -467,8 +489,22 @@ public final class ApplicationRuntime: InvalidationTarget {
 
         try window.present(canvas)
         frameCount += 1
+        writeInspectorSnapshotIfNeeded(node: scene.root, layout: layout, renderTree: tree)
         needsRender = false
         log.trace("presented frame \(frameCount)")
+    }
+
+    private func writeInspectorSnapshotIfNeeded(node: UINode, layout: LayoutBox, renderTree: RenderTree) {
+        guard descriptor.inspectorEnabled, !descriptor.inspectorSnapshotPath.isEmpty else { return }
+        do {
+            let snapshot = Inspector.snapshot(node: node, layout: layout, renderTree: renderTree, frameCount: frameCount)
+            let text = try Inspector.json(snapshot)
+            let url = URL(fileURLWithPath: descriptor.inspectorSnapshotPath)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            log.warning("could not write inspector snapshot: \(error)")
+        }
     }
 
     // MARK: - Introspection, for tests and the inspector

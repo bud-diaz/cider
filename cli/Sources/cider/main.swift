@@ -35,6 +35,22 @@ let exitCode: Int32 = {
         switch command.name {
         case "doctor":
             return DoctorCommand.run(command)
+        case "scan":
+            return try ScanCommand.run(command)
+        case "compatibility-docs":
+            return try CompatibilityDocsCommand.run(command)
+        case "inspect":
+            return try InspectCommand.run(command)
+        case "network":
+            return try NetworkCommand.run(command)
+        case "storage":
+            return try StorageCommand.run(command)
+        case "init":
+            return try InitCommand.run(command)
+        case "dev-loop":
+            return try DevLoopCommand.run(command)
+        case "dev":
+            return try DevCommand.run(command)
         case "build":
             return try BuildCommand.run(command)
         case "run":
@@ -43,7 +59,7 @@ let exitCode: Int32 = {
             throw Diagnostic(
                 code: "CID0512",
                 summary: "unknown command `\(command.name)`",
-                reason: "Cider has three commands: doctor, build and run.",
+                reason: "Cider has commands for doctor, scan, compatibility-docs, inspect, network, storage, init, dev-loop, dev, build and run.",
                 remedy: "Run `cider --help` to see what each does."
             )
         }

@@ -1,0 +1,12 @@
+app:
+  id: dev.cider.rest-client
+  name: REST Client
+  entry: RESTClientCiderApp
+
+runtime:
+  minimumCompatibility: "0.1"
+  device: phone-standard
+
+permissions:
+  network: true
+  localStorage: true

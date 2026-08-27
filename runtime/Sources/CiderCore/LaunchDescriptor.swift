@@ -40,6 +40,12 @@ public struct LaunchDescriptor: Equatable, Sendable {
     public var logLevel: LogLevel
     public var inspectorEnabled: Bool
 
+    /// Where the runtime writes the latest structured inspector snapshot when inspection is enabled.
+    public var inspectorSnapshotPath: String
+
+    /// Local dev-mode proxy endpoint for capturing CiderHTTP requests. Empty means direct requests.
+    public var requestCaptureProxyURL: String
+
     /// Root of this application's isolated on-disk data area, prepared by
     /// `cider run` before launch (docs/03-technical-architecture.md section
     /// 8: "per-app data roots"). Empty when the binary was started without
@@ -56,7 +62,9 @@ public struct LaunchDescriptor: Equatable, Sendable {
         permissions: AppPermissions,
         logLevel: LogLevel = .info,
         inspectorEnabled: Bool = false,
-        sandboxDataRoot: String = ""
+        sandboxDataRoot: String = "",
+        inspectorSnapshotPath: String = "",
+        requestCaptureProxyURL: String = ""
     ) {
         self.version = version
         self.appID = appID
@@ -68,6 +76,8 @@ public struct LaunchDescriptor: Equatable, Sendable {
         self.logLevel = logLevel
         self.inspectorEnabled = inspectorEnabled
         self.sandboxDataRoot = sandboxDataRoot
+        self.inspectorSnapshotPath = inspectorSnapshotPath
+        self.requestCaptureProxyURL = requestCaptureProxyURL
     }
 
     public func encoded() -> String {
@@ -84,6 +94,8 @@ public struct LaunchDescriptor: Equatable, Sendable {
         log.level = \(logLevel.name)
         inspector.enabled = \(inspectorEnabled)
         sandbox.data-root = \(sandboxDataRoot)
+        inspector.snapshot-path = \(inspectorSnapshotPath)
+        request-capture.proxy-url = \(requestCaptureProxyURL)
 
         """
     }
@@ -148,7 +160,9 @@ public struct LaunchDescriptor: Equatable, Sendable {
             ),
             logLevel: fields["log.level"].flatMap(LogLevel.init(name:)) ?? .info,
             inspectorEnabled: fields["inspector.enabled"] == "true",
-            sandboxDataRoot: fields["sandbox.data-root"] ?? ""
+            sandboxDataRoot: fields["sandbox.data-root"] ?? "",
+            inspectorSnapshotPath: fields["inspector.snapshot-path"] ?? "",
+            requestCaptureProxyURL: fields["request-capture.proxy-url"] ?? ""
         )
     }
 }

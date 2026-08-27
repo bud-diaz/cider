@@ -102,7 +102,27 @@ Breaking changes to a previously Level A API require:
 -   test update;
 -   major-version change once the project reaches 1.0.
 
-## 8. Compatibility Scorecard
+## 8. Compatibility Registry and Scanner
+
+Stage 4 ships text commands plus a loopback-only graphical developer console:
+
+- `cider scan` for compatibility scanning and unsupported-API diagnostics;
+- `cider inspect` for a manifest, sandbox, permission and scan summary;
+- `cider network` for network permission state and literal `CiderHTTP` URL call
+  sites;
+- `cider storage` for sandbox file listings;
+- `cider dev-loop` for the optimized `swift build` + `cider run --no-build`
+  relaunch path;
+- `cider init` for project templates;
+- `cider compatibility-docs` for generated registry documentation;
+- `cider dev` for a browser-based local dashboard with structured inspector
+  snapshots, file-watching rebuild/relaunch, captured `CiderHTTP` requests and a
+  sandbox browser/reset flow.
+
+`cider dev` binds to `127.0.0.1` and captures only Cider app requests routed
+through `CiderHTTP`; it is not a system proxy or IDE extension.
+
+## 9. Compatibility Scorecard
 
 Every release should publish generated coverage by domain, including
 counts for Levels A--D and known differences.

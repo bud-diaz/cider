@@ -25,6 +25,8 @@ final class ConformanceHarness {
     init<App: CiderApp>(
         _ app: App,
         device: String = "phone-standard",
+        permissions: AppPermissions = .none,
+        sandboxDataRoot: String = "",
         logLevel: LogLevel = .trace
     ) throws {
         self.backend = TestingHostBackend()
@@ -35,8 +37,9 @@ final class ConformanceHarness {
                 appEntry: "\(App.self)",
                 minimumCompatibility: "0.1",
                 deviceProfileName: device,
-                permissions: .none,
-                logLevel: logLevel
+                permissions: permissions,
+                logLevel: logLevel,
+                sandboxDataRoot: sandboxDataRoot
             ),
             application: CiderAppAdapter(app: app),
             backend: backend,

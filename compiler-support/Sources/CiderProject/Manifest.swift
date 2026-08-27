@@ -44,7 +44,9 @@ public struct Manifest: Equatable, Sendable {
         deviceOverride: String? = nil,
         logLevel: LogLevel = .info,
         inspectorEnabled: Bool = false,
-        sandboxDataRoot: String = ""
+        sandboxDataRoot: String = "",
+        inspectorSnapshotPath: String = "",
+        requestCaptureProxyURL: String = ""
     ) -> LaunchDescriptor {
         LaunchDescriptor(
             appID: appID,
@@ -55,7 +57,9 @@ public struct Manifest: Equatable, Sendable {
             permissions: permissions,
             logLevel: logLevel,
             inspectorEnabled: inspectorEnabled,
-            sandboxDataRoot: sandboxDataRoot
+            sandboxDataRoot: sandboxDataRoot,
+            inspectorSnapshotPath: inspectorSnapshotPath,
+            requestCaptureProxyURL: requestCaptureProxyURL
         )
     }
 }

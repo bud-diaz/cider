@@ -94,11 +94,16 @@ final class CiderAppAdapter<App: CiderApp>: RuntimeApplication {
 
     func didLaunch(context: RuntimeContext) {
         self.context = context
+        CiderServiceContext.attach(context)
         attachState(of: app, invalidate: { [weak context] in context?.invalidate() })
     }
 
     func makeScene() -> ApplicationScene {
         Lowering.scene(from: app.body)
+    }
+
+    func willTerminate() {
+        CiderServiceContext.detach()
     }
 
     /// Finds every `@CiderState` on the application and wires it to invalidation.

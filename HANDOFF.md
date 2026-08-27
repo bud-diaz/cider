@@ -9,25 +9,24 @@ session, whether or not the milestone finished.
 
 ## Status
 
-**This plan is complete.** Every milestone (Part A, B1-B9) is implemented,
-pushed, and confirmed green on CI — Stage 1 is closed and Stage 2 (UI MVP)
-is done. Nothing is queued next within this plan's scope; what's left is
-Stage 3 (services: HTTP, preferences, storage, timers, clipboard), which
-this plan never covered. Anyone picking this repo back up should start
-from a fresh plan for Stage 3, using this file's Open issues section below
-as the punch list of Stage 2 loose ends worth closing first. The visual
-baseline gap has now been closed; the remaining Stage 2 loose end is that
-B9's reference app has been built but not interactively run/tapped through.
+**This original Stage 1/2 plan is complete, a Stage 3 services MVP has been
+layered on top, and Stage 4 developer-experience MVP command coverage is now
+implemented.**
+Every original milestone (Part A, B1-B9) is implemented,
+pushed, and confirmed green on CI — Stage 1 is closed and Stage 2 (UI MVP) is
+done. The latest local continuation adds Stage 4 compatibility registry/scanner,
+generated docs, inspector/network/storage viewers, templates, and dev-loop
+planning; it has been Docker-verified locally but not yet pushed or CI-confirmed. The
+prior Stage 3 service APIs and reference apps remain local/unpushed from the
+previous continuation. The remaining loose ends are interactive/manual
+validation: B9's Stage 2 UI showcase has been built but not tapped through under
+`cider run`, and the new Stage 3 notes/REST examples have been build-verified but
+not interactively run.
 
-Note: `swift` is not installed in the container this work was done in, so
-none of this has been build/test-verified locally beyond what CI reports —
-every claim of "done" here rests on CI, not on running it. CI came back
-green on Part A (159f987), B1 (1d20d63), B2 (c272a26), B3 (8676a50), B4
-(52590ca), B5 (a91f40f), B7 (0ec9d66), B8 (bf59f3c) and B9 (76f9e56, run
-32582812483 — including the new "build every examples/* package" step,
-confirming `examples/ui-showcase` actually compiles). B6's first push
-(db2a5df) **failed CI** — the only real test failure this plan hit; the
-fix (31c3f79) came back green.
+Note: `swift` is not installed on the host, so local verification for this
+continuation used the same Swift 6.0 Noble Docker path as CI. Older Done entries
+that cite CI still rest on GitHub Actions results; the latest Stage 3 entry rests
+on the Docker commands recorded below until it is pushed and CI runs.
 
 **Caveat carried from B3, still true, now more relevant**: CI's `swift
 build`/`swift test` compile the X11 C shim but never execute it — every
@@ -43,7 +42,91 @@ hand-picked keyCode values, never a real keyboard. Someone with real
 display access should run `examples/hello-cider`, focus a text field, and
 confirm actual typing works before this is trusted end-to-end.
 
-**Latest continuation (brand/design Stage 2 update):** Reviewed
+**Latest continuation (Stage 4 graphical developer-experience closure):** Added
+`cider dev`, a loopback-only browser developer console that prepares `.cider/dev`,
+serves dashboard routes from a small local HTTP server, exposes structured
+inspector snapshots, file-watching rebuild/relaunch orchestration, request capture
+records for `CiderHTTP`, a sandbox browser/reset API, and a dev event log. The
+runtime can now persist JSON inspector snapshots when launched with inspector
+metadata, and `CiderHTTP` can route through the dev capture proxy when the launch
+descriptor supplies one. Added focused unit coverage for inspector snapshots,
+dev workspace/server routes, file watching, sandbox browsing, and request-header
+redaction, plus `scripts/validate-stage4-dev.sh` for Stage 4 smoke validation.
+
+**Latest continuation (Stage 4 developer-experience MVP completion):** Added
+text-first MVP command coverage for the rest of Stage 4. The new
+`compiler-support/Sources/CiderProject/DeveloperExperience.swift` helpers produce
+project inspection reports, network call-site reports, storage sandbox listings,
+project templates, and a fast dev-loop plan. The CLI now exposes these via
+`cider inspect`, `cider network`, `cider storage`, `cider init`, and
+`cider dev-loop` in `cli/Sources/cider/DevToolsCommands.swift`, alongside the
+already-added `cider scan` and `cider compatibility-docs` commands.
+
+Added `tests/unit/DeveloperExperienceTests.swift` for the new helper layer:
+inspector summary, network URL discovery, storage file listing, template
+creation, and `run --no-build` dev-loop planning. Updated `README.md`,
+`docs/04-compatibility-specification.md`, and
+`docs/05-implementation-roadmap.md` to mark Stage 4 as text-first MVP done while
+being explicit that this is not a graphical inspector or live file-watching IDE
+integration. Verification was run in the Swift 6.0 Noble Docker environment:
+`swift test` passed 206/206, and the built CLI was smoke-tested for `inspect`,
+`network`, `storage`, `dev-loop`, and `init`.
+
+**Previous continuation (Stage 4 compatibility documentation generator):** Extended
+the Stage 4 registry slice with `CompatibilityDocumentation.markdown()` and the
+CLI command `cider compatibility-docs`, including `--output <file>` support. The
+command renders the same `CompatibilityRegistry` data used by `cider scan`, so the
+published compatibility table does not drift into a second hand-maintained source
+of truth. Generated and checked in `docs/compatibility-registry.md`, linked it
+from `docs/README.md`, and updated `README.md` / `docs/04-compatibility-specification.md`
+to document the command. Verification was run in the Swift 6.0 Noble Docker
+environment: the new documentation-generator unit test passed, full `swift test`
+passed 201/201, and `cider compatibility-docs` was verified both to stdout and to
+an output file.
+
+**Previous continuation (Stage 4 developer experience scanner slice):** Added a
+first explicit compatibility registry and source scanner in
+`compiler-support/Sources/CiderProject/Compatibility.swift`. The registry records
+supported, supported-with-differences, and recognized-unsupported symbols with
+compatibility levels/domains/guidance; the scanner emits structured `CID0605`
+warning diagnostics for recognized unsupported APIs such as SwiftUI/UIKit,
+URLSession, StoreKit/Product, Camera, and CoreData. It scans `.swift` source
+files while skipping comments, string literals, and generated/build directories
+such as `.build`, `.git`, `.cider`, and `DerivedData`. This is intentionally a
+token-based early-warning scanner, not a full Swift parser.
+
+Added the CLI command `cider scan` in `cli/Sources/cider/ScanCommand.swift`, wired
+it into the command dispatcher and help text, and documented it in `README.md`
+and `docs/04-compatibility-specification.md`. Added unit coverage in
+`tests/unit/CompatibilityScannerTests.swift` for clean supported CiderUI source,
+actionable unsupported-API diagnostics, comment/string ignoring, project scanning
+outside build artifacts, and stable registry entries. Verification was run in the
+Swift 6.0 Noble Docker environment: the new scanner tests passed, root
+`swift test` passed 200/200, and `cider scan` passed for `examples/ui-showcase`,
+`examples/notes-cider`, and `examples/rest-client-cider`.
+
+**Previous continuation (Stage 3 application services MVP):** Added the first
+Stage 3 service surface in `compatibility/Sources/CiderUI/Services.swift`:
+`CiderEnvironment`, `CiderPreferences`, `CiderStorage`, `CiderClipboard`,
+`CiderTimer`, and `CiderHTTP`. Services are project-owned Cider APIs rather than
+Foundation/UIKit facades, and they enforce the existing manifest permissions at
+use sites (`CID0601` for local storage, `CID0604` for network). Preferences and
+Documents/Cache/tmp storage are sandbox-root scoped; storage paths reject absolute
+and parent-traversing names (`CID0603`). `ApplicationRuntime` now exposes
+`enterBackground()` / `enterForeground()` for lifecycle simulation, and the
+compatibility adapter attaches/detaches the active service context at launch and
+termination.
+
+Added conformance coverage in `tests/conformance/Stage3ServiceTests.swift` for
+`ENV-VALUES-001`, `STORE-PREF-001`, `STORE-FILE-001`, `CLIPBOARD-001`,
+`TIMER-001`, `LIFE-BG-001`, and `NET-HTTP-001`. Added two Stage 3 reference
+apps: `examples/notes-cider` (preferences + documents storage + clipboard) and
+`examples/rest-client-cider` (permissioned HTTP + cache + clipboard). Updated
+`README.md` to mark Stage 3 as MVP done and record the remaining service caveats.
+Verification was run in the Swift 6.0 Noble Docker environment: `swift test`
+passed 195/195, and `swift build` passed for every `examples/*` package.
+
+**Previous continuation (brand/design Stage 2 update):** Reviewed
 `docs/Cider_DESIGN.md` and `docs/Cider Branding.md`, normalized their markdown
 formatting, added them to the docs index, and applied the locked brand palette to
 Stage 2 defaults. `Theme` now exposes the canonical Cider tokens (`#10100F`,
@@ -590,6 +673,30 @@ through. The example is build-verified only.
   feels right end-to-end. Do that before calling Stage 2 "done" in any
   stronger sense than "the pipeline compiles and the conformance suite
   passes."
+- **The new Stage 3 reference apps are build-verified only.**
+  `examples/notes-cider` and `examples/rest-client-cider` compile in the
+  Swift 6.0 Noble Docker environment, but have not been run under `cider run`,
+  typed into, clicked through, or visually inspected. The REST-client app also
+  uses `CiderHTTP.getBlocking` because there is no event-loop-friendly async task
+  API yet.
+- **HTTP real I/O needs deterministic coverage.** `NET-HTTP-001` currently
+  proves permission enforcement before network access; it does not prove a real
+  HTTP response path against a deterministic local server. Add that before
+  treating CiderHTTP as stronger than an MVP service surface.
+- **Stage 4 graphical DX is now implemented as a local dev console.** `cider dev`
+  adds the graphical inspector, polling file watcher with rebuild/relaunch,
+  CiderHTTP request capture, sandbox browser/reset and event timeline. This is
+  still a development loop, not an IDE extension or in-process Swift hot-swap.
+- **The new Stage 4 scanner is intentionally shallow.** `cider scan` is useful
+  early-warning tooling for the first compatibility registry, but it is not a
+  Swift parser. It can miss dynamic/aliased usage and only knows the symbols
+  explicitly listed in `CompatibilityRegistry`. The next Stage 4 slice should
+  either expand the registry with generated docs or move toward SwiftSyntax-style
+  parsing if deeper source analysis is needed.
+- **Stage 4 dev console boundaries:** the request capture proxy is loopback-only
+  and scoped to `CiderHTTP`; it is not a system-wide proxy. The file watcher uses
+  polling and relaunches the app after rebuild rather than patching code in
+  process.
 - **The `@_exported import CiderCore` fix (see B9) was found by hand,
   reading code, not by a failing build** — CI had never built any example
   app before this session added that step, so there was no automated
@@ -612,3 +719,5 @@ Implemented by this plan:
 - `NAV-PUSH-001`, `NAV-POP-001` (B7)
 - `UI-MODAL-001` (B8)
 - `STYLE-BRAND-001` (brand/design Stage 2 update)
+- `ENV-VALUES-001`, `STORE-PREF-001`, `STORE-FILE-001`, `CLIPBOARD-001`,
+  `TIMER-001`, `LIFE-BG-001`, `NET-HTTP-001` (Stage 3 services MVP)

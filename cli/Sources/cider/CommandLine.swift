@@ -19,10 +19,10 @@ struct ParsedCommand {
 
 enum CommandLineParser {
     /// Options that take a value.
-    static let valueOptions: Set<String> = ["--path", "--device", "--log-level", "--configuration"]
+    static let valueOptions: Set<String> = ["--path", "--device", "--log-level", "--configuration", "--output", "--app-id", "--port"]
 
     /// Options that stand alone.
-    static let booleanFlags: Set<String> = ["--inspect", "--help", "-h", "--version", "--no-build"]
+    static let booleanFlags: Set<String> = ["--inspect", "--help", "-h", "--version", "--no-build", "--open", "--no-open", "--once"]
 
     static func parse(_ arguments: [String]) throws -> ParsedCommand {
         var options: [String: String] = [:]

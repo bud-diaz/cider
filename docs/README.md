@@ -27,15 +27,17 @@ The initial product goal is narrower:
     compiler/toolchain strategy, host abstractions, package layout.
 4.  `04-compatibility-specification.md` --- compatibility tiers, API
     policy, app manifest, unsupported behavior.
-5.  `05-implementation-roadmap.md` --- research spikes, MVP phases, exit
+5.  `compatibility-registry.md` --- generated symbol/domain/level table
+    from the Stage 4 compatibility registry.
+6.  `05-implementation-roadmap.md` --- research spikes, MVP phases, exit
     criteria, post-MVP direction.
-6.  `06-testing-strategy.md` --- unit, conformance, integration, visual,
+7.  `06-testing-strategy.md` --- unit, conformance, integration, visual,
     performance, and security testing.
-7.  `07-legal-distribution-boundaries.md` --- clean-room principles,
+8.  `07-legal-distribution-boundaries.md` --- clean-room principles,
     trademarks, proprietary assets, contributor rules.
-8.  `Cider_DESIGN.md` --- locked brand/design specification: palette,
+9.  `Cider_DESIGN.md` --- locked brand/design specification: palette,
     logo direction, typography, UI direction, voice, and misuse rules.
-9.  `Cider Branding.md` --- exploratory brand rationale that led to the
+10. `Cider Branding.md` --- exploratory brand rationale that led to the
     locked design direction.
 
 ## Working Project Definition

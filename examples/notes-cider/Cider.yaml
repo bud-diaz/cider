@@ -1,0 +1,12 @@
+app:
+  id: dev.cider.notes
+  name: Notes
+  entry: NotesCiderApp
+
+runtime:
+  minimumCompatibility: "0.1"
+  device: phone-standard
+
+permissions:
+  network: false
+  localStorage: true

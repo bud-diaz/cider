@@ -199,8 +199,11 @@ let package = Package(
                 "CiderProject",
                 "CiderDeviceProfiles",
                 "CiderHostTesting",
+                "CiderInspector",
+                "CiderRuntime",
             ],
-            path: "tests/unit"
+            path: "tests/unit",
+            exclude: ["Snapshots"]
         ),
         .testTarget(
             name: "CiderConformanceTests",

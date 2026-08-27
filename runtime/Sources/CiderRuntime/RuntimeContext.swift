@@ -27,6 +27,9 @@ public final class RuntimeContext {
     public let appID: String
     public let appName: String
 
+    /// Local dev-mode proxy endpoint for request capture. Empty outside `cider dev`.
+    public let requestCaptureProxyURL: String
+
     /// A logger on the application channel, so developer output stays visually
     /// distinct from Cider's own.
     public let log: Logger
@@ -41,6 +44,7 @@ public final class RuntimeContext {
         sandbox: SandboxPaths?,
         appID: String,
         appName: String,
+        requestCaptureProxyURL: String = "",
         log: Logger,
         invalidationTarget: InvalidationTarget
     ) {
@@ -49,6 +53,7 @@ public final class RuntimeContext {
         self.sandbox = sandbox
         self.appID = appID
         self.appName = appName
+        self.requestCaptureProxyURL = requestCaptureProxyURL
         self.log = log
         self.invalidationTarget = invalidationTarget
     }

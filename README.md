@@ -12,12 +12,16 @@ Apple's toolchain remains the authority for iOS compilation, code signing,
 physical-device validation, TestFlight and App Store distribution. Cider does
 not replace any of those and does not try to.
 
-> **Status: pre-alpha.** Stages 0-2 of the roadmap are complete: a Swift
-> application launches through the Cider CLI into a sandboxed, CI-verified
-> runtime, and its UI can use text, buttons, stacks, images, scrolling, text
-> input, lists, navigation and modals. There is still no networking, no
-> persistent storage and no compatibility contract. Everything else on this
-> page is either a non-goal or future work.
+> **Status: pre-alpha.** Stages 0-3 of the roadmap have an implemented MVP: a
+> Swift application launches through the Cider CLI into a sandboxed,
+> CI-verified runtime; its UI can use text, buttons, stacks, images, scrolling,
+> text input, lists, navigation and modals; and project-owned service APIs cover
+> HTTP, preferences, sandboxed files, timers, environment values, clipboard and
+> lifecycle simulation. Stage 4 developer-experience work now includes both the
+> original text commands and `cider dev`, a loopback-only graphical developer
+> console with structured runtime inspector snapshots, file-watching
+> rebuild/relaunch, request capture for `CiderHTTP`, and a sandbox browser. The
+> public alpha compatibility contract is still Stage 5 work.
 
 ---
 
@@ -52,6 +56,22 @@ Concretely:
 
 - **`cider doctor`** — inspects the host and reports what is missing, with the
   command to fix it.
+- **`cider scan`** — scans project Swift sources against the compatibility
+  registry and reports recognized unsupported APIs with actionable diagnostics.
+- **`cider compatibility-docs`** — generates the published compatibility-registry
+  markdown table from the same registry the scanner uses.
+- **`cider inspect`** — prints a project manifest, sandbox, permission and
+  compatibility-scan summary.
+- **`cider network`** — shows network permission state and literal `CiderHTTP`
+  URL call sites.
+- **`cider storage`** — lists files currently present in the app sandbox data
+  root.
+- **`cider init`** — creates a minimal Cider app template.
+- **`cider dev-loop`** — prints the optimized `swift build` plus
+  `cider run --no-build` iteration loop.
+- **`cider dev`** — starts the local Stage 4 developer console on
+  `127.0.0.1`: graphical inspector, file-watching rebuild/relaunch,
+  `CiderHTTP` request capture, sandbox browser and event timeline.
 - **`cider build`** — locates the project, validates its manifest, compiles
   through SwiftPM, and reports the runnable artifact.
 - **`cider run`** — builds if needed, resolves a device profile, opens a
@@ -68,10 +88,13 @@ Concretely:
   interfaces — pointer, scroll and keyboard input.
 - **A headless backend** used by the test suites, so conformance and visual tests
   need no display.
+- **Stage 3 application services**: permission-checked HTTP, preferences,
+  documents/cache/temp text storage, one-shot timers, environment values,
+  process-local clipboard, and foreground/background lifecycle simulation.
 - **A sandboxed, per-app data root** and redacted logging, and CI that
   builds and tests every push on the Ubuntu/Swift matrix
   `docs/06-testing-strategy.md` specifies.
-- **186 tests** across unit, conformance, integration and visual-regression
+- **200 tests** across unit, conformance, integration and visual-regression
   suites.
 
 ## Goals
@@ -252,6 +275,13 @@ published:
 | `NAV-PUSH-001` | A navigation view lowers to a nav stack and pushes screens. |
 | `NAV-POP-001` | Popping a navigation stack returns to the screen underneath. |
 | `UI-MODAL-001` | A modal dims and overlays base content, and blocks taps to it. |
+| `ENV-VALUES-001` | Runtime environment values are visible to application code. |
+| `STORE-PREF-001` | Preferences persist values inside the app sandbox. |
+| `STORE-FILE-001` | Documents/cache/temp text files are scoped to the sandbox. |
+| `CLIPBOARD-001` | The development clipboard stores text for the running app. |
+| `TIMER-001` | One-shot timers run application code after their interval. |
+| `LIFE-BG-001` | Foreground/background lifecycle transitions can be simulated. |
+| `NET-HTTP-001` | HTTP requests enforce manifest network permission. |
 
 Visual baselines are re-recorded deliberately:
 
@@ -263,7 +293,7 @@ A recording run fails on purpose. Read the diff before committing it.
 
 ## Current limitations
 
-This is Stage 2. The list is long and honest:
+This is a Stage 3 MVP. The list is still long and honest:
 
 - **UI**: `Text`, `Button`, `VStack`, `Image`, `ScrollView`, `TextField`,
   `List`, `NavigationView` and `Modal`. No image decoding (an `Image` is
@@ -279,19 +309,25 @@ This is Stage 2. The list is long and honest:
 - **Text**: one line, left to right, with kerning. No bidirectional reordering
   and no complex-script shaping — Arabic, Devanagari and Thai render
   incorrectly.
-- **Services**: no networking, storage, timers or clipboard. The manifest's
-  permissions are parsed and carried, and nothing enforces them yet because
-  nothing uses them. Each application does get an isolated, per-app data root
-  on disk (`cider run` creates it before launch), but nothing reads or writes
-  into it until storage lands in Stage 3.
-- **Lifecycle**: launch, foreground and termination. Backgrounding is modelled in
-  the type but has no transitions into it.
+- **Services**: the Stage 3 APIs are intentionally small and project-owned, not
+  Foundation/UIKit-compatible facades. Storage is UTF-8 text only, preferences
+  are string values, clipboard is process-local, timers are one-shot, and the
+  REST-client example currently uses a blocking GET path because Cider does not
+  yet have an event-loop-friendly async task API. HTTP permission enforcement is
+  conformance-tested; real network I/O still needs broader deterministic tests.
+- **Lifecycle**: launch, foreground, simulated background and termination. There
+  are no OS-driven background deadlines or suspension semantics.
 - **Rendering**: full redraw on every change, CPU only. No animation, no dirty
   rectangles.
 - **Device profiles**: one, `phone-standard`, portrait, scale 1.
 - **Platform**: Linux and X11 only. No Wayland backend, no Windows backend.
-- **Compatibility registry**: not built. No API in Cider currently carries a
-  compatibility level.
+- **Compatibility tooling / DX**: a first compatibility registry powers
+  `cider scan`, `cider compatibility-docs`, `cider inspect`, `cider network`,
+  `cider storage`, `cider init`, and `cider dev-loop`; `cider dev` adds the
+  graphical local console, file-watching rebuild/relaunch, request capture and
+  rich sandbox browser. The scanner is token-based, not a Swift parser, so it is
+  useful early warning machinery rather than a complete source-compatibility
+  analyzer.
 
 ## Roadmap
 
@@ -303,9 +339,9 @@ Full detail in
 | 0 | Prove the architecture end to end | **done** |
 | 1 | Runtime skeleton: CLI, manifest, lifecycle, profiles, logging, sandbox, CI | **done** |
 | 2 | UI MVP: images, scrolling, text input, lists, navigation, modals | **done** |
-| 3 | Services: HTTP, preferences, storage, timers, clipboard | next |
-| 4 | Developer experience: compatibility scanner, inspector, hot loop | |
-| 5 | Alpha: packaging, versioned compatibility contract, 10+ reference apps | |
+| 3 | Services: HTTP, preferences, storage, timers, clipboard | **MVP done** |
+| 4 | Developer experience: scanner, graphical inspector, hot reload, request capture, sandbox browser | **closed** |
+| 5 | Alpha: packaging, versioned compatibility contract, 10+ reference apps | next |
 | 6 | Windows backend | |
 
 Explicitly deferred: App Store binaries, iOS firmware, hardware-faithful

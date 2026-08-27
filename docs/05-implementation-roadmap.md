@@ -71,19 +71,27 @@ Implement:
 
 ## Stage 4 --- Developer Experience
 
-Implement:
+Implemented developer-experience surfaces:
 
--   compatibility scanner;
--   actionable unsupported-API diagnostics;
--   inspector;
--   network viewer;
--   storage viewer;
--   rebuild/relaunch optimization;
--   templates;
--   documentation generator from compatibility registry.
+-   compatibility scanner (`cider scan`);
+-   actionable unsupported-API diagnostics (`CID0605` from the scanner);
+-   inspector (`cider inspect` project/manifest/sandbox/scan report, plus
+    `cider run --inspect` runtime tree dumps);
+-   network viewer (`cider network`);
+-   storage viewer (`cider storage`);
+-   rebuild/relaunch optimization (`cider dev-loop`, documenting
+    `swift build` + `cider run --no-build`);
+-   graphical local developer console (`cider dev`) with structured inspector
+    snapshots, file-watching rebuild/relaunch, request capture for `CiderHTTP`,
+    sandbox browser/reset, and event timeline;
+-   templates (`cider init`);
+-   documentation generator from compatibility registry
+    (`cider compatibility-docs`).
 
-**Exit:** A new contributor can install, run a sample, modify it, and
-diagnose an unsupported call using published docs.
+**Exit:** A new contributor can create a template, run a sample, modify it,
+scan for unsupported calls, inspect the project/runtime graphically, view
+network/storage state, iterate through file-watching rebuild/relaunch, and
+regenerate compatibility docs from published commands.
 
 ## Stage 5 --- Alpha
 

@@ -22,6 +22,13 @@
 //    NAV-POP-001       popping a navigation stack returns to the screen underneath
 //    UI-MODAL-001      Modal dims and overlays base content, and blocks taps to it
 //    STYLE-BRAND-001   Stage 2 defaults use the locked Cider brand palette
+//    ENV-VALUES-001    runtime environment values are visible to application code
+//    STORE-PREF-001    preferences persist values inside the app sandbox
+//    STORE-FILE-001    documents/cache/temp text files are scoped to the sandbox
+//    CLIPBOARD-001     the development clipboard stores text for the running app
+//    TIMER-001         one-shot timers run application code after their interval
+//    LIFE-BG-001       foreground/background lifecycle transitions can be simulated
+//    NET-HTTP-001      HTTP requests enforce manifest network permission
 
 import XCTest
 
