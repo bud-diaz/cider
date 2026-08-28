@@ -355,12 +355,10 @@ emulation, DRM, signing bypass, Secure Enclave.
 
 ## Contributing
 
-Cider is pre-alpha and **not yet open for outside contributions** — the
-repository has no license selected, so there is nothing for a contributor to
-agree to. See [`LICENSE-TODO.md`](LICENSE-TODO.md).
-
-[`CONTRIBUTING.md`](CONTRIBUTING.md) describes the standards that will apply, and
-is worth reading before proposing anything.
+Cider is pre-alpha but licensed under [Apache-2.0](LICENSE) (third-party
+attribution in [`NOTICE`](NOTICE)). [`CONTRIBUTING.md`](CONTRIBUTING.md)
+describes the standards that apply, and is worth reading before proposing
+anything.
 
 ## Security
 

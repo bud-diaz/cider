@@ -13,10 +13,12 @@ host operating system provides by default.
 
 **Do not open a public issue for a security problem.**
 
-> **A security contact address has not been published yet.** Cider is pre-alpha
-> and has no public contribution channel;
-> `docs/01-project-charter.md` section 8 makes establishing one a gate before
-> public release. Until then, report directly to the project owner.
+Report through **GitHub private vulnerability reporting**:
+[github.com/bud-diaz/cider/security/advisories/new](https://github.com/bud-diaz/cider/security/advisories/new).
+This opens a private advisory visible only to you and the maintainers, so no
+separate contact address is required. This satisfies the "durable security
+contact" gate `docs/01-project-charter.md` section 8 makes a requirement
+before public release.
 
 A useful report includes:
 

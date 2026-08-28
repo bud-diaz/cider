@@ -1,11 +1,13 @@
 # Contributing to Cider
 
-> **Cider is not yet open for outside contributions.** The repository has no
-> license selected, so there is nothing for a contributor to grant rights under.
-> See [`LICENSE-TODO.md`](LICENSE-TODO.md).
+> Cider is licensed under [Apache-2.0](LICENSE) (see [`NOTICE`](NOTICE) for
+> third-party attribution). Cider is still pre-alpha, and this document
+> describes the standards that apply to any contribution now.
 >
-> This document describes the standards that will apply when it opens, and is
-> the reference for anyone working on the project now.
+> By submitting a Contribution, you agree it is licensed under Apache-2.0,
+> consistent with the License's own Section 5 ("Submission of
+> Contributions") — there is no separate CLA or DCO sign-off required at
+> this stage.
 
 ## Before you write code
 

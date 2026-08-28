@@ -54,9 +54,19 @@ public enum AlphaReadinessReport {
     public static func evaluate(repoRoot: URL) -> [AlphaGate] {
         let referenceAppCount = countReferenceApps(repoRoot: repoRoot)
         let ciUbuntuVersions = supportedUbuntuVersions(repoRoot: repoRoot)
+        let contractTagged = fileContains(repoRoot, "RELEASE_NOTES.md", alphaVersion)
+        let securityChannelPublished = fileContains(repoRoot, "SECURITY.md", "private vulnerability reporting")
+            && !fileContains(repoRoot, "SECURITY.md", "has not been published yet")
+        let licensed = fileExists(repoRoot, "LICENSE")
+        let knownIssueRows = knownIssueRowCount(repoRoot: repoRoot)
+        let performanceRecorded = fileExists(repoRoot, "docs/performance-baseline.md")
+            && !fileContains(repoRoot, "docs/performance-baseline.md", "No public alpha numbers are published yet")
 
         return [
             AlphaGate(
+                // Deliberately never `.done`: signed archives / package-manager distribution need
+                // real release infrastructure no file can attest to. This gate is intentionally
+                // accepted as an alpha caveat rather than flipped in code — see RELEASE_NOTES.md.
                 requirement: "installation packaging",
                 status: fileExists(repoRoot, "docs/install.md") ? .partial : .missing,
                 evidence: fileExists(repoRoot, "docs/install.md") ? "docs/install.md documents source-build install and PATH setup" : "no install document found",
@@ -64,33 +74,45 @@ public enum AlphaReadinessReport {
             ),
             AlphaGate(
                 requirement: "versioned compatibility contract",
-                status: fileExists(repoRoot, "docs/compatibility-registry.md") ? .partial : .missing,
-                evidence: "contract \(compatibilityContractVersion), CLI \(alphaVersion), registry entries: \(CompatibilityRegistry.all.count)",
-                nextStep: "Tag the alpha contract and treat conformance IDs plus registry entries as stable for the alpha line."
+                status: fileExists(repoRoot, "docs/compatibility-registry.md") ? (contractTagged ? .done : .partial) : .missing,
+                evidence: contractTagged
+                    ? "contract \(compatibilityContractVersion), CLI \(alphaVersion), registry entries: \(CompatibilityRegistry.all.count), tagged \(alphaVersion) (see RELEASE_NOTES.md)"
+                    : "contract \(compatibilityContractVersion), CLI \(alphaVersion), registry entries: \(CompatibilityRegistry.all.count)",
+                nextStep: contractTagged
+                    ? "Keep conformance IDs and registry entries stable for the alpha line."
+                    : "Tag the alpha contract and treat conformance IDs plus registry entries as stable for the alpha line."
             ),
             AlphaGate(
                 requirement: "security reporting",
-                status: fileExists(repoRoot, "SECURITY.md") ? .partial : .missing,
-                evidence: fileExists(repoRoot, "SECURITY.md") ? "SECURITY.md exists, but the public contact is still owner-direct/TBD" : "SECURITY.md missing",
-                nextStep: "Publish a durable security contact before inviting external alpha users."
+                status: fileExists(repoRoot, "SECURITY.md") ? (securityChannelPublished ? .done : .partial) : .missing,
+                evidence: securityChannelPublished
+                    ? "SECURITY.md documents GitHub private vulnerability reporting as the public contact channel"
+                    : (fileExists(repoRoot, "SECURITY.md") ? "SECURITY.md exists, but the public contact is still owner-direct/TBD" : "SECURITY.md missing"),
+                nextStep: securityChannelPublished ? "Keep the reporting channel current." : "Publish a durable security contact before inviting external alpha users."
             ),
             AlphaGate(
                 requirement: "contribution policy",
-                status: fileExists(repoRoot, "CONTRIBUTING.md") ? .partial : .missing,
-                evidence: fileExists(repoRoot, "CONTRIBUTING.md") ? "CONTRIBUTING.md and CODE_OF_CONDUCT.md exist; outside contributions remain gated on license/public channel" : "CONTRIBUTING.md missing",
-                nextStep: "Select a license and open the documented contribution path."
+                status: fileExists(repoRoot, "CONTRIBUTING.md") ? (licensed ? .done : .partial) : .missing,
+                evidence: licensed
+                    ? "LICENSE (Apache-2.0), CONTRIBUTING.md and CODE_OF_CONDUCT.md exist; outside contributions are open"
+                    : (fileExists(repoRoot, "CONTRIBUTING.md") ? "CONTRIBUTING.md and CODE_OF_CONDUCT.md exist; outside contributions remain gated on license/public channel" : "CONTRIBUTING.md missing"),
+                nextStep: licensed ? "Keep the contribution path current." : "Select a license and open the documented contribution path."
             ),
             AlphaGate(
                 requirement: "known-issues database",
-                status: fileExists(repoRoot, "docs/known-issues.md") ? .partial : .missing,
-                evidence: fileExists(repoRoot, "docs/known-issues.md") ? "docs/known-issues.md records alpha caveats" : "docs/known-issues.md missing",
-                nextStep: "Move issue records to the public tracker when the repo opens."
+                status: knownIssueRows > 0 ? .done : (fileExists(repoRoot, "docs/known-issues.md") ? .partial : .missing),
+                evidence: knownIssueRows > 0
+                    ? "docs/known-issues.md records \(knownIssueRows) alpha caveat(s)"
+                    : (fileExists(repoRoot, "docs/known-issues.md") ? "docs/known-issues.md records alpha caveats" : "docs/known-issues.md missing"),
+                nextStep: knownIssueRows > 0 ? "Move issue records to the public tracker when the repo opens." : "Record known issues before public alpha."
             ),
             AlphaGate(
                 requirement: "performance baseline",
-                status: fileExists(repoRoot, "docs/performance-baseline.md") ? .partial : .missing,
-                evidence: fileExists(repoRoot, "docs/performance-baseline.md") ? "docs/performance-baseline.md defines repeatable commands and current baseline scope" : "docs/performance-baseline.md missing",
-                nextStep: "Record measured alpha numbers in CI or release notes before tagging."
+                status: fileExists(repoRoot, "docs/performance-baseline.md") ? (performanceRecorded ? .done : .partial) : .missing,
+                evidence: performanceRecorded
+                    ? "docs/performance-baseline.md records measured alpha numbers"
+                    : (fileExists(repoRoot, "docs/performance-baseline.md") ? "docs/performance-baseline.md defines repeatable commands and current baseline scope" : "docs/performance-baseline.md missing"),
+                nextStep: performanceRecorded ? "Re-measure when the supported CI/host matrix changes." : "Record measured alpha numbers in CI or release notes before tagging."
             ),
             AlphaGate(
                 requirement: "at least 10 reference applications",
@@ -109,6 +131,16 @@ public enum AlphaReadinessReport {
 
     private static func fileExists(_ root: URL, _ relativePath: String) -> Bool {
         FileManager.default.fileExists(atPath: root.appendingPathComponent(relativePath).path)
+    }
+
+    private static func fileContains(_ root: URL, _ relativePath: String, _ needle: String) -> Bool {
+        guard let text = try? String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8) else { return false }
+        return text.contains(needle)
+    }
+
+    private static func knownIssueRowCount(repoRoot: URL) -> Int {
+        guard let text = try? String(contentsOf: repoRoot.appendingPathComponent("docs/known-issues.md"), encoding: .utf8) else { return 0 }
+        return text.split(separator: "\n").filter { $0.hasPrefix("| CIDER-KI-") }.count
     }
 
     private static func countReferenceApps(repoRoot: URL) -> Int {

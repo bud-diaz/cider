@@ -43,6 +43,21 @@ public protocol CiderApp {
 
     @CiderViewBuilder
     var body: Body { get }
+
+    /// Called when the runtime simulates the app moving to the background
+    /// (`ApplicationRuntime.enterBackground()`). Optional — override to react
+    /// to the transition; the default does nothing.
+    func didEnterBackground()
+
+    /// Called when the runtime simulates the app returning to the foreground
+    /// (`ApplicationRuntime.enterForeground()`). Optional — override to react
+    /// to the transition; the default does nothing.
+    func didEnterForeground()
+}
+
+public extension CiderApp {
+    func didEnterBackground() {}
+    func didEnterForeground() {}
 }
 
 public extension CiderApp {
@@ -104,6 +119,14 @@ final class CiderAppAdapter<App: CiderApp>: RuntimeApplication {
 
     func willTerminate() {
         CiderServiceContext.detach()
+    }
+
+    func didEnterBackground() {
+        app.didEnterBackground()
+    }
+
+    func didEnterForeground() {
+        app.didEnterForeground()
     }
 
     /// Finds every `@CiderState` on the application and wires it to invalidation.

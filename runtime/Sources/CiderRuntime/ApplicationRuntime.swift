@@ -203,6 +203,7 @@ public final class ApplicationRuntime: InvalidationTarget {
     public func enterBackground() {
         guard state == .foreground else { return }
         state = .background
+        application.didEnterBackground()
         log.info("application entered background")
     }
 
@@ -211,6 +212,7 @@ public final class ApplicationRuntime: InvalidationTarget {
         guard state == .background else { return }
         state = .foreground
         needsRender = true
+        application.didEnterForeground()
         log.info("application entered foreground")
     }
 

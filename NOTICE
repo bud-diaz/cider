@@ -1,0 +1,20 @@
+Cider
+Copyright 2026 Cider Project Contributors
+
+This product is licensed under the Apache License, Version 2.0. See LICENSE.
+
+This product links, at runtime, against the following system libraries.
+They are not vendored or redistributed as part of this repository, but are
+listed here per the attribution obligations that apply when Cider (or an
+application built with it) is distributed:
+
+- libX11 — MIT-style (X11) license — used by CX11Shim
+  (host/linux/Sources/CX11Shim)
+- FreeType — dual-licensed under the FreeType License (FTL, permissive) or
+  GPLv2; Cider's own use relies on the FTL terms — used by CTextShim
+  (host/linux/Sources/CTextShim)
+- fontconfig — MIT-style license — used by CTextShim
+  (host/linux/Sources/CTextShim)
+
+See docs/07-legal-distribution-boundaries.md for the project's broader
+dependency-licensing policy.

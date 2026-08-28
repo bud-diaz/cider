@@ -8,6 +8,16 @@ before `0.1.0` carry no compatibility promise, and
 `docs/04-compatibility-specification.md` section 7 describes the policy that
 takes effect once one exists.
 
+## [0.1.0-alpha.0]
+
+First tagged alpha milestone. See `RELEASE_NOTES.md` for the full Stage 5
+gate status and accepted caveats, and `HANDOFF.md` for implementation
+detail. Highlights since the entries below: Stage 3 services (HTTP,
+preferences, storage, timers, clipboard), Stage 4 developer experience
+(`cider scan`/`inspect`/`network`/`storage`/`dev`), an Apache-2.0 license,
+a versioned compatibility contract, 10 reference applications, and CI
+across two Ubuntu LTS releases (24.04, 22.04).
+
 ## [Unreleased]
 
 ### Added

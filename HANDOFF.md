@@ -10,22 +10,109 @@ session, whether or not the milestone finished.
 ## Status
 
 **This original Stage 1/2 plan is complete; Stage 3 services and Stage 4
-developer-experience are now closed at MVP scope; Stage 5 alpha-readiness is now
-started but not complete.** Every original milestone (Part A, B1-B9) is
+developer-experience are closed at MVP scope; Stage 5 alpha-readiness is now
+closed at tag `v0.1.0-alpha.0`, with installation packaging explicitly
+accepted as an alpha caveat rather than closed in code — see
+`RELEASE_NOTES.md`.** Every original milestone (Part A, B1-B9) is
 implemented, pushed, and confirmed green on CI — Stage 1 is closed and Stage 2
-(UI MVP) is done. The latest local Stage 3/4 continuation closes the verification
+(UI MVP) is done. The Stage 3/4 continuation closed the verification
 gap: Notes and REST-client reference apps are built and smoke-run under `cider
 run`/Xvfb through the real X11 backend, the Stage 4 contributor flow is covered
 end to end, and `scripts/validate-stages3-4.sh` records that repeatable
-validation path. The newest Stage 5 continuation adds alpha readiness reporting
-and docs, but intentionally leaves public-alpha release gates marked partial.
-These latest local changes have been Docker-verified but are not yet pushed or
-CI-confirmed.
+validation path.
+
+**Correction to a stale note:** the previous version of this section said the
+Stage 5 alpha-readiness slice (commit `d59548c`, "feat: start Stage 5 alpha
+readiness") was "not yet pushed or CI-confirmed." That was wrong by the time
+this continuation started — `d59548c` was already on `origin/main` and CI run
+`33131811903` had already passed. Flagging the miss here rather than quietly
+fixing it, per this file's own stated practice of recording deviations.
 
 Note: `swift` is not installed on the host, so local verification for these
 continuations used the same Swift 6.0 Noble Docker path as CI. Older Done entries
 that cite CI still rest on GitHub Actions results; the latest local entries rest
 on the Docker commands recorded below until they are pushed and CI runs.
+
+**Latest continuation (Stage 5 closure):** Closed every Stage 5 gate the
+project's own completion rule (`docs/stage5-alpha-readiness.md`) allows to
+close in code, and explicitly accepted the one that can't (installation
+packaging — signed archives / package-manager distribution need real release
+infrastructure this session can't stand up). Concretely:
+
+- `compiler-support/Sources/CiderProject/AlphaReadiness.swift`: gates 2-6
+  (compatibility contract, security reporting, contribution policy,
+  known-issues database, performance baseline) gained real `.done` branches
+  — content checks against `RELEASE_NOTES.md`, `SECURITY.md`,
+  `LICENSE`/`CONTRIBUTING.md`, `docs/known-issues.md`, and
+  `docs/performance-baseline.md` respectively. Gate 1 (packaging) is
+  deliberately left with no `.done` path — see the comment on it in the
+  source. `tests/unit/AlphaReadinessTests.swift` gained a new test
+  (`testAlphaReadinessGatesReachDoneWhenEvidenceIsRecordedButPackagingStaysPartial`)
+  asserting gates 2-6 reach `.done` while gate 1 stays `.partial` even in a
+  maximally-complete fixture.
+- Licensed the repository under Apache-2.0 (`LICENSE`, `NOTICE` for the
+  FreeType/libX11/fontconfig attribution `LICENSE-TODO.md` had flagged),
+  removed `LICENSE-TODO.md`, and opened `CONTRIBUTING.md`/`README.md`
+  accordingly.
+- Enabled GitHub private vulnerability reporting on `bud-diaz/cider`
+  (`gh api -X PUT /repos/bud-diaz/cider/private-vulnerability-reporting`)
+  and documented it as the `SECURITY.md` contact channel.
+- Added six new narrow-scope reference apps under `examples/`, bringing the
+  total to 10: `nav-list-cider`, `form-input-cider`, `image-loading-cider`,
+  `modal-presentation-cider`, `timer-clipboard-cider`, `lifecycle-cider`.
+  Each reuses existing conformance coverage rather than adding new node
+  kinds, matching how `notes-cider`/`rest-client-cider` didn't need new IDs
+  either. `docs/02-product-requirements.md` §5 now names all 10.
+- **Added real application-facing lifecycle hooks**, not just examples:
+  `RuntimeApplication.didEnterBackground()`/`didEnterForeground()`
+  (`runtime/Sources/CiderRuntime/Application.swift`, called from
+  `ApplicationRuntime.enterBackground()`/`enterForeground()`) and matching
+  `CiderApp` protocol requirements with no-op defaults
+  (`compatibility/Sources/CiderUI/CiderApp.swift`), forwarded through
+  `CiderAppAdapter`. Before this, `ApplicationRuntime.enterBackground()`/
+  `enterForeground()` (Stage 3) changed runtime state but nothing called
+  into application code when they fired. New conformance test `LIFE-BG-002`
+  in `tests/conformance/Stage3ServiceTests.swift` proves the hooks actually
+  fire, using a new `LifecycleProbeApp`/`LifecycleFlagBox` fixture.
+  `examples/lifecycle-cider` demonstrates the hooks, but see Open issues —
+  nothing in `cider run` itself drives the transition yet.
+- Expanded CI (`.github/workflows/ci.yml`) to matrix over two Ubuntu LTS
+  releases: `runs-on`/`container` now vary by a new `ubuntu` matrix
+  dimension (`ubuntu-24.04`/`swift:*-noble`, `ubuntu-22.04`/`swift:*-jammy`),
+  doubling the job count to 8. Verified both containers build and pass all
+  223 tests.
+- Measured and recorded real numbers in `docs/performance-baseline.md`
+  (build/test times, per-example build times, a coarse `cider run`
+  startup-to-first-frame proxy, conformance-suite render/update timings, and
+  `scripts/validate-stages3-4.sh`'s wall time), replacing the "not yet
+  published" placeholder. Measured on the `noble` container only; `jammy` is
+  verified to build/pass but not separately profiled.
+- Tagged `v0.1.0-alpha.0` and added `RELEASE_NOTES.md` documenting the final
+  gate table and every accepted caveat, plus a short `CHANGELOG.md` entry.
+- Added `scripts/validate-stage5.sh`: builds all 6 new apps, interactively
+  smoke-tests `form-input-cider` (type + submit), `modal-presentation-cider`
+  (present a sheet), and `nav-list-cider` (push a detail screen) via
+  `cider run --no-build --inspect` under Xvfb + `xdotool`, then asserts the
+  final `cider alpha-readiness` report has no `missing` gates and exactly
+  one `partial` gate (installation packaging).
+- `docs/known-issues.md`: closed `CIDER-KI-0006` (reference app count) and
+  `CIDER-KI-0008` (security contact); added `CIDER-KI-0009` (lifecycle hooks
+  have no interactive trigger) and `CIDER-KI-0010` (`CiderTimer` callbacks
+  run off the render thread, surfaced while building
+  `examples/timer-clipboard-cider` — the closure had to capture
+  `nonisolated(unsafe)` to satisfy Swift 6 strict concurrency against
+  `CiderState`, which is not `Sendable`).
+
+Verification in Swift 6.0 Noble Docker (mounted at `/home/bud/cider`): root
+`swift build`/`swift test` passed (223/223, debug and release); the same
+passed in `swift:6.0-jammy`; all 10 `examples/*` packages built individually
+(`timer-clipboard-cider` needed the `nonisolated(unsafe)` fix above to
+compile under Swift 6 strict concurrency); `swift test --filter
+AlphaReadinessTests` passed 3/3; `swift test --filter Stage3ServiceTests`
+passed 12/12 including `LIFE_BG_002`; `.build/debug/cider alpha-readiness
+--path /home/bud/cider` reported 7 gates `done` and exactly 1 `partial`
+(installation packaging); `scripts/validate-stages3-4.sh` and the new
+`scripts/validate-stage5.sh` both passed.
 
 **Latest continuation (Stage 5 alpha-readiness slice):** Started Stage 5 without
 overclaiming public alpha completion. Added `AlphaReadinessReport` in
@@ -691,14 +778,30 @@ tap-through pass under `cider run`.
 
 ## Open issues
 
-- **Stage 5 is started, not complete.** `cider alpha-readiness` currently reports
-  all public-alpha gates as partial: source install is documented but packaging is
-  not shipped; the compatibility contract is documented but not tagged; security
-  and contribution docs exist but still need public contact/license decisions;
-  known-issues and performance-baseline docs exist but measured release numbers
-  are not published; there are 4 reference apps, not 10; CI currently names only
-  Ubuntu 24.04. Do not mark Stage 5 complete until these partial gates are either
-  closed or explicitly accepted as alpha release caveats.
+- **Stage 5 is closed at `v0.1.0-alpha.0`, with one accepted caveat.**
+  `cider alpha-readiness` reports 7 gates `done`; **installation packaging
+  stays `partial` by design** — signed binary archives and package-manager
+  distribution need real release infrastructure (signing keys, a package
+  repository) this project doesn't have. Build from source per
+  `docs/install.md` until that lands. See `RELEASE_NOTES.md` for the full
+  gate table.
+- **`examples/lifecycle-cider` has no interactive trigger.**
+  `CiderApp.didEnterBackground()`/`didEnterForeground()` are real and
+  conformance-tested (`LIFE-BG-002`), but nothing in `cider run` itself
+  drives a background/foreground transition — there's no OS app-switcher
+  signal on Linux and no CLI/dev-console control to simulate one. Only
+  test/harness code can trigger it today (`docs/known-issues.md`
+  `CIDER-KI-0009`).
+- **`CiderTimer` callbacks run off the render thread, and `CiderState` isn't
+  `Sendable`.** Building `examples/timer-clipboard-cider` (`CiderTimer`'s
+  first reference-app use) needed `nonisolated(unsafe)` to capture the bound
+  state in the timer's `@Sendable` closure under Swift 6 strict concurrency
+  — an honest opt-out of a real, undocumented-until-now race, not a fix for
+  it (`docs/known-issues.md` `CIDER-KI-0010`).
+- **`jammy` (Ubuntu 22.04) performance is not separately measured.** CI now
+  builds and tests both `noble` and `jammy` containers, but
+  `docs/performance-baseline.md`'s recorded numbers are `noble`-only;
+  `jammy` is assumed comparable, not independently profiled.
 - **B9's Stage 2 UI-showcase reference app (`examples/ui-showcase`) remains a
   separate Stage 2 manual-polish caveat.** Stage 3/4 closure did not broaden
   scope to a full UI-showcase walkthrough; the app is still build-verified and
@@ -753,3 +856,4 @@ Implemented by this plan:
 - `STYLE-BRAND-001` (brand/design Stage 2 update)
 - `ENV-VALUES-001`, `STORE-PREF-001`, `STORE-FILE-001`, `CLIPBOARD-001`,
   `TIMER-001`, `LIFE-BG-001`, `NET-HTTP-001` (Stage 3 services MVP)
+- `LIFE-BG-002` (Stage 5 closure — app-level lifecycle hooks)

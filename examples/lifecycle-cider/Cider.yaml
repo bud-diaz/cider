@@ -1,0 +1,19 @@
+# The Cider project manifest.
+#
+# Cider owns this format so a project's runtime metadata does not depend on a
+# proprietary project file. Unknown keys are an error, not a warning: a setting
+# that is silently ignored is one you believe is in effect.
+
+app:
+  id: dev.cider.lifecycle
+  name: Lifecycle
+  entry: LifecycleCiderApp
+
+runtime:
+  # Quoted so it stays a string; 0.1 unquoted would be a number.
+  minimumCompatibility: "0.1"
+  device: phone-standard
+
+permissions:
+  network: false
+  localStorage: false

@@ -150,16 +150,24 @@ beginning, even if full assistive-technology integration arrives later.
 
 ## 5. MVP Reference Applications
 
-The conformance suite should include at minimum:
+Stage 5 requires at least 10 reference applications
+(`docs/05-implementation-roadmap.md`). The conformance suite should include
+at minimum, each mapped to its `examples/` directory:
 
--   Hello UI;
--   navigation/list app;
--   form/text-input app;
--   image-loading app;
--   REST client;
--   persistent notes app;
--   modal/presentation example;
--   lifecycle/background simulation example.
+-   Hello UI -- `examples/hello-cider`;
+-   navigation/list app -- `examples/nav-list-cider`;
+-   form/text-input app -- `examples/form-input-cider`;
+-   image-loading app -- `examples/image-loading-cider`;
+-   REST client -- `examples/rest-client-cider`;
+-   persistent notes app -- `examples/notes-cider`;
+-   modal/presentation example -- `examples/modal-presentation-cider`;
+-   lifecycle/background simulation example -- `examples/lifecycle-cider`;
+-   timer/clipboard service example -- `examples/timer-clipboard-cider`;
+-   combined UI showcase -- `examples/ui-showcase`, which deliberately
+    re-composes navigation, list, form/text-input, image-loading and modal
+    presentation into one app (a documented Stage 2 B9 deviation; see
+    `HANDOFF.md`) rather than duplicating those four as narrow examples a
+    second time.
 
 ## 6. Not a Compatibility Promise
 

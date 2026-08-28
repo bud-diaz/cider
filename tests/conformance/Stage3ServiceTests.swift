@@ -138,6 +138,28 @@ final class Stage3ServiceTests: XCTestCase {
         XCTAssertEqual(harness.runtime.state, .foreground)
     }
 
+    // MARK: - LIFE-BG-002
+
+    /// LIFE-BG-002: `CiderApp.didEnterBackground()`/`didEnterForeground()` fire on
+    /// simulated transitions, so application code (not just the runtime's own
+    /// state) can react. LIFE-BG-001 only proves the runtime's `state` changes;
+    /// this proves the app-facing hook that reads it is actually invoked.
+    func testLIFE_BG_002_appLevelHooksFireOnSimulatedTransitions() throws {
+        let probe = LifecycleProbeApp()
+        let harness = try ConformanceHarness(probe)
+        try harness.launch()
+
+        XCTAssertFalse(probe.flags.enteredBackground)
+        XCTAssertFalse(probe.flags.enteredForeground)
+
+        harness.runtime.enterBackground()
+        XCTAssertTrue(probe.flags.enteredBackground)
+        XCTAssertFalse(probe.flags.enteredForeground)
+
+        harness.runtime.enterForeground()
+        XCTAssertTrue(probe.flags.enteredForeground)
+    }
+
     // MARK: - NET-HTTP-001
 
     /// NET-HTTP-001: HTTP requests enforce the manifest network permission before touching the network.
@@ -208,6 +230,32 @@ final class Stage3ServiceTests: XCTestCase {
 struct ServiceProbeApp: CiderApp {
     var body: some CiderView {
         Text("Services")
+    }
+}
+
+/// Reference-typed so a test can observe hook calls made against the
+/// `CiderApp` value copied into `CiderAppAdapter` -- the same reasoning
+/// `@CiderState` boxes its storage in a class.
+final class LifecycleFlagBox {
+    var enteredBackground = false
+    var enteredForeground = false
+}
+
+/// Records whether the app-level lifecycle hooks actually fire, for
+/// LIFE-BG-002.
+struct LifecycleProbeApp: CiderApp {
+    let flags = LifecycleFlagBox()
+
+    var body: some CiderView {
+        Text("Lifecycle")
+    }
+
+    func didEnterBackground() {
+        flags.enteredBackground = true
+    }
+
+    func didEnterForeground() {
+        flags.enteredForeground = true
     }
 }
 

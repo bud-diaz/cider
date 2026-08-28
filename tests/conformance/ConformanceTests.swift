@@ -28,6 +28,7 @@
 //    CLIPBOARD-001     the development clipboard stores text for the running app
 //    TIMER-001         one-shot timers run application code after their interval
 //    LIFE-BG-001       foreground/background lifecycle transitions can be simulated
+//    LIFE-BG-002       CiderApp.didEnterBackground()/didEnterForeground() fire on those transitions
 //    NET-HTTP-001      HTTP requests enforce manifest network permission
 
 import XCTest

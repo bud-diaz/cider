@@ -14,14 +14,15 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Swift ${{ matrix.swift }} / ${{ matrix.configuration }}
-    runs-on: ubuntu-24.04
-    container: swift:${{ matrix.swift }}-noble
+    name: Swift ${{ matrix.swift }} / ${{ matrix.configuration }} / ${{ matrix.ubuntu }}
+    runs-on: ${{ matrix.ubuntu }}
+    container: swift:${{ matrix.swift }}-${{ matrix.ubuntu == 'ubuntu-24.04' && 'noble' || 'jammy' }}
     strategy:
       fail-fast: false
       matrix:
         swift: ["6.0"]
         configuration: [debug, release]
+        ubuntu: [ubuntu-24.04, ubuntu-22.04]
 
     steps:
       - name: Checkout

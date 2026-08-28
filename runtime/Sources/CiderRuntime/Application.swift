@@ -41,9 +41,9 @@ public struct ApplicationScene {
 /// The application lifecycle states Cider models. FR-002 in
 /// docs/02-product-requirements.md.
 ///
-/// `background` has no transitions into it yet -- backgrounding is Stage 3 work --
-/// but the case exists so that code switching over the state is written against
-/// the real set from the start.
+/// `background` is reached via `ApplicationRuntime.enterBackground()`, a
+/// Stage 3 simulated transition (there is no real OS app-switcher signal on
+/// Linux yet).
 public enum ApplicationState: String, Sendable, Equatable, CaseIterable {
     case notRunning
     case launching
@@ -65,9 +65,19 @@ public protocol RuntimeApplication: AnyObject {
 
     /// Called once before the process exits.
     func willTerminate()
+
+    /// Called when `ApplicationRuntime.enterBackground()` transitions the app
+    /// from `.foreground` to `.background`.
+    func didEnterBackground()
+
+    /// Called when `ApplicationRuntime.enterForeground()` transitions the app
+    /// from `.background` to `.foreground`.
+    func didEnterForeground()
 }
 
 public extension RuntimeApplication {
     func didLaunch(context: RuntimeContext) {}
     func willTerminate() {}
+    func didEnterBackground() {}
+    func didEnterForeground() {}
 }
