@@ -12,16 +12,17 @@ Apple's toolchain remains the authority for iOS compilation, code signing,
 physical-device validation, TestFlight and App Store distribution. Cider does
 not replace any of those and does not try to.
 
-> **Status: pre-alpha.** Stages 0-3 of the roadmap have an implemented MVP: a
-> Swift application launches through the Cider CLI into a sandboxed,
-> CI-verified runtime; its UI can use text, buttons, stacks, images, scrolling,
-> text input, lists, navigation and modals; and project-owned service APIs cover
-> HTTP, preferences, sandboxed files, timers, environment values, clipboard and
-> lifecycle simulation. Stage 4 developer-experience work now includes both the
-> original text commands and `cider dev`, a loopback-only graphical developer
-> console with structured runtime inspector snapshots, file-watching
-> rebuild/relaunch, request capture for `CiderHTTP`, and a sandbox browser. The
-> public alpha compatibility contract is still Stage 5 work.
+> **Status: pre-alpha.** Stages 0-4 of the roadmap now have an implemented and
+> smoke-verified MVP: a Swift application launches through the Cider CLI into a
+> sandboxed, CI-verified runtime; its UI can use text, buttons, stacks, images,
+> scrolling, text input, lists, navigation and modals; and project-owned service
+> APIs cover HTTP, preferences, sandboxed files, timers, environment values,
+> clipboard and lifecycle simulation. Stage 4 developer-experience work includes
+> the text commands plus `cider dev`, a loopback-only graphical developer console
+> with structured runtime inspector snapshots, file-watching rebuild/relaunch,
+> request capture for `CiderHTTP`, and a sandbox browser. Stage 5 alpha-readiness
+> work has started with contract/policy/docs inventory via `cider alpha-readiness`;
+> public alpha is not complete yet.
 
 ---
 
@@ -69,6 +70,8 @@ Concretely:
 - **`cider init`** — creates a minimal Cider app template.
 - **`cider dev-loop`** — prints the optimized `swift build` plus
   `cider run --no-build` iteration loop.
+- **`cider alpha-readiness`** — reports Stage 5 public-alpha gate status against
+  the current checkout.
 - **`cider dev`** — starts the local Stage 4 developer console on
   `127.0.0.1`: graphical inspector, file-watching rebuild/relaunch,
   `CiderHTTP` request capture, sandbox browser and event timeline.
@@ -94,8 +97,9 @@ Concretely:
 - **A sandboxed, per-app data root** and redacted logging, and CI that
   builds and tests every push on the Ubuntu/Swift matrix
   `docs/06-testing-strategy.md` specifies.
-- **200 tests** across unit, conformance, integration and visual-regression
-  suites.
+- **219 tests** across unit, conformance, integration and visual-regression
+  suites, plus `scripts/validate-stages3-4.sh` for Xvfb-backed Stage 3/4 smoke
+  validation.
 
 ## Goals
 
@@ -190,13 +194,14 @@ struct HelloCiderApp: CiderApp {
 }
 ```
 
-Useful flags:
+Useful commands and flags:
 
 ```sh
 cider run --log-level debug   # trace what the runtime is doing
 cider run --inspect           # print the UI tree on every rebuild
 cider run --no-build          # launch what is already built
 cider build --configuration release
+cider alpha-readiness         # inspect Stage 5 public-alpha gates
 ```
 
 ## Architecture
@@ -293,15 +298,15 @@ A recording run fails on purpose. Read the diff before committing it.
 
 ## Current limitations
 
-This is a Stage 3 MVP. The list is still long and honest:
+This is a Stage 4 MVP. The list is still long and honest:
 
 - **UI**: `Text`, `Button`, `VStack`, `Image`, `ScrollView`, `TextField`,
   `List`, `NavigationView` and `Modal`. No image decoding (an `Image` is
   already-decoded pixels — see `ImageSource`'s doc comment — not a PNG/JPEG
   loaded from a file), no list virtualization, no partial-height modal
-  sheets (a presented `Modal` is always full-screen), and no composed/IME
-  text input on the real X11 backend (`TextField` reads raw keysyms; see
-  `HANDOFF.md` for the exact scope).
+  sheets (a presented `Modal` is always full-screen), and no full XIM/IME
+  composed text on the real X11 backend. Basic keymap text now flows through
+  XLookupString-backed `HostEvent.textInput`; Backspace remains raw-key handling.
 - **Layout**: no constraints, no text wrapping, no frame or padding
   modifiers. The root either centres one node in the safe area (most node
   kinds) or fills it (`NavigationView`, `Modal`) — see
@@ -313,8 +318,9 @@ This is a Stage 3 MVP. The list is still long and honest:
   Foundation/UIKit-compatible facades. Storage is UTF-8 text only, preferences
   are string values, clipboard is process-local, timers are one-shot, and the
   REST-client example currently uses a blocking GET path because Cider does not
-  yet have an event-loop-friendly async task API. HTTP permission enforcement is
-  conformance-tested; real network I/O still needs broader deterministic tests.
+  yet have an event-loop-friendly async task API. HTTP permission enforcement,
+  async GET, and the blocking demo GET path all have deterministic loopback
+  conformance coverage.
 - **Lifecycle**: launch, foreground, simulated background and termination. There
   are no OS-driven background deadlines or suspension semantics.
 - **Rendering**: full redraw on every change, CPU only. No animation, no dirty

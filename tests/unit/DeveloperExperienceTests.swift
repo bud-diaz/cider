@@ -61,11 +61,18 @@ final class DeveloperExperienceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let destination = root.appendingPathComponent("MyApp")
 
-        try TemplateGenerator.createApp(named: "MyApp", appID: "dev.example.myapp", at: destination)
+        try TemplateGenerator.createApp(
+            named: "MyApp",
+            appID: "dev.example.myapp",
+            at: destination,
+            ciderPackagePath: "/tmp/cider-fixture"
+        )
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: destination.appendingPathComponent("Cider.yaml").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: destination.appendingPathComponent("Package.swift").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: destination.appendingPathComponent("Sources/MyApp/MyApp.swift").path))
+        let package = try String(contentsOf: destination.appendingPathComponent("Package.swift"), encoding: .utf8)
+        XCTAssertTrue(package.contains(".package(path: \"/tmp/cider-fixture\")"))
         let project = try ProjectLocator.locate(from: destination)
         XCTAssertEqual(project.manifest.appID, "dev.example.myapp")
     }

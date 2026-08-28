@@ -136,7 +136,7 @@ public enum StorageViewer {
 }
 
 public enum TemplateGenerator {
-    public static func createApp(named name: String, appID: String, at destination: URL) throws {
+    public static func createApp(named name: String, appID: String, at destination: URL, ciderPackagePath: String = "../..") throws {
         guard ManifestParser.isValidAppID(appID) else {
             throw Diagnostic(code: "CID0610", summary: "`\(appID)` is not a valid application identifier")
         }
@@ -154,13 +154,13 @@ public enum TemplateGenerator {
 
         let sourceDirectory = destination.appendingPathComponent("Sources/\(name)", isDirectory: true)
         try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-        try packageSwift(name: name).write(to: destination.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try packageSwift(name: name, ciderPackagePath: ciderPackagePath).write(to: destination.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
         try manifest(name: name, appID: appID).write(to: destination.appendingPathComponent("Cider.yaml"), atomically: true, encoding: .utf8)
         try appSource(name: name).write(to: sourceDirectory.appendingPathComponent("\(name).swift"), atomically: true, encoding: .utf8)
         try readme(name: name).write(to: destination.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
     }
 
-    private static func packageSwift(name: String) -> String {
+    private static func packageSwift(name: String, ciderPackagePath: String) -> String {
         """
         // swift-tools-version: 6.0
         import PackageDescription
@@ -168,7 +168,7 @@ public enum TemplateGenerator {
         let package = Package(
             name: "\(name)",
             products: [.executable(name: "\(name)", targets: ["\(name)"])],
-            dependencies: [.package(path: "../..")],
+            dependencies: [.package(path: "\(ciderPackagePath)")],
             targets: [.executableTarget(name: "\(name)", dependencies: [.product(name: "CiderUI", package: "Cider")])]
         )
         """

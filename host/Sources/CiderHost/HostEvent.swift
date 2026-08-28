@@ -59,9 +59,11 @@ public enum HostEvent: Sendable, Equatable {
     case keyUp(keyCode: Int)
 
     /// Composed, ready-to-insert text for whatever currently has keyboard
-    /// focus, after the host's own dead-key/IME composition. This is
+    /// focus, after the host's own keymap/dead-key/IME composition. This is
     /// distinct from `keyDown`: a control key (arrows, backspace, enter)
     /// produces a `keyDown` with no `textInput`, and one composed character
-    /// can be the result of several key presses.
+    /// can be the result of several key presses. The Linux X11 backend currently
+    /// uses XLookupString for basic keymap text; full XIM/XIC IME composition is
+    /// still a later expansion.
     case textInput(String)
 }

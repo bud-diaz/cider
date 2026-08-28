@@ -31,7 +31,8 @@ enum cider_x11_event_kind {
     CIDER_X11_EVENT_CLOSE = 7,
     CIDER_X11_EVENT_SCROLL = 8,
     CIDER_X11_EVENT_KEY_DOWN = 9,
-    CIDER_X11_EVENT_KEY_UP = 10
+    CIDER_X11_EVENT_KEY_UP = 10,
+    CIDER_X11_EVENT_TEXT_INPUT = 11
 };
 
 typedef struct {
@@ -49,21 +50,24 @@ typedef struct {
     int scroll_delta_x;
     int scroll_delta_y;
     /* Populated for CIDER_X11_EVENT_KEY_DOWN / CIDER_X11_EVENT_KEY_UP: the
-       X11 KeySym for the unshifted key, via XLookupKeysym. This is a raw
-       host key code, not composed text -- see cider_x11_event_kind's doc
-       comment in the Swift HostEvent it feeds. */
+       X11 KeySym reported for the key. This is a raw host key code, not
+       composed text -- see cider_x11_event_kind's doc comment in the Swift
+       HostEvent it feeds. */
     unsigned long key_sym;
+    /* Populated for CIDER_X11_EVENT_TEXT_INPUT: UTF-8 bytes from XLookupString.
+       The buffer is intentionally small because this Stage 3/4 runtime only
+       supports simple text fields; longer IME composition remains future work. */
+    char text[32];
+    int text_length;
 } cider_x11_event;
 
 /*
- * NOTE on keyboard text input: this shim reports raw key symbols
- * (CIDER_X11_EVENT_KEY_DOWN / _KEY_UP) but does not yet compose them into
- * text via an X input method (Xutf8LookupString / XIM / XIC). That needs a
- * locale-dependent input context this shim does not set up. It is deferred
- * until a text-entry view exists to consume it and can be used to test it
- * interactively -- there is no automated test of the real X11 backend today
- * (see CiderHostTesting), so this is verified by running `cider run`, not by
- * `swift test`.
+ * NOTE on keyboard text input: this shim uses XLookupString for the current
+ * keymap's basic single-key text and reports it as CIDER_X11_EVENT_TEXT_INPUT.
+ * It still does not create an X input context for Xutf8LookupString / XIM / XIC,
+ * so dead-key and IME composition remain deferred. Control keys still report as
+ * raw CIDER_X11_EVENT_KEY_DOWN / _KEY_UP so the runtime can handle editing keys
+ * such as Backspace.
  */
 
 /*

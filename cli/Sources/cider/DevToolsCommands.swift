@@ -38,6 +38,15 @@ enum DevLoopCommand {
     }
 }
 
+enum AlphaReadinessCommand {
+    static func run(_ command: ParsedCommand) throws -> Int32 {
+        let root = command.option("--path").map { URL(fileURLWithPath: $0) }
+            ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        StandardStreams.out(AlphaReadinessReport.markdown(repoRoot: root))
+        return 0
+    }
+}
+
 enum InitCommand {
     static func run(_ command: ParsedCommand) throws -> Int32 {
         guard let name = command.positional.first else {
@@ -51,7 +60,7 @@ enum InitCommand {
         let appID = command.option("--app-id") ?? "dev.example.\(name.lowercased())"
         let destination = command.option("--path").map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(name, isDirectory: true)
-        try TemplateGenerator.createApp(named: name, appID: appID, at: destination)
+        try TemplateGenerator.createApp(named: name, appID: appID, at: destination, ciderPackagePath: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).path)
         StandardStreams.out("[cider] created template at \(destination.path)")
         return 0
     }

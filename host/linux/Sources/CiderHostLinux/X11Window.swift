@@ -1,5 +1,6 @@
 //  HostWindow over the X11 shim.
 
+import Foundation
 import CiderCore
 import CiderHost
 import CX11Shim
@@ -119,6 +120,13 @@ final class X11Window: HostWindow {
             return .keyDown(keyCode: Int(raw.key_sym))
         case CIDER_X11_EVENT_KEY_UP.rawValue:
             return .keyUp(keyCode: Int(raw.key_sym))
+        case CIDER_X11_EVENT_TEXT_INPUT.rawValue:
+            let length = max(0, min(Int(raw.text_length), 32))
+            let data = withUnsafeBytes(of: raw.text) { rawText in
+                Data(rawText.prefix(length))
+            }
+            guard let text = String(data: data, encoding: .utf8), !text.isEmpty else { return nil }
+            return .textInput(text)
         default:
             return nil
         }

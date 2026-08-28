@@ -49,6 +49,8 @@ let exitCode: Int32 = {
             return try InitCommand.run(command)
         case "dev-loop":
             return try DevLoopCommand.run(command)
+        case "alpha-readiness":
+            return try AlphaReadinessCommand.run(command)
         case "dev":
             return try DevCommand.run(command)
         case "build":
@@ -59,7 +61,7 @@ let exitCode: Int32 = {
             throw Diagnostic(
                 code: "CID0512",
                 summary: "unknown command `\(command.name)`",
-                reason: "Cider has commands for doctor, scan, compatibility-docs, inspect, network, storage, init, dev-loop, dev, build and run.",
+                reason: "Cider has commands for doctor, scan, compatibility-docs, inspect, network, storage, init, dev-loop, alpha-readiness, dev, build and run.",
                 remedy: "Run `cider --help` to see what each does."
             )
         }

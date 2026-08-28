@@ -247,14 +247,16 @@ public final class ApplicationRuntime: InvalidationTarget {
             break
 
         case .textInput(let text):
-            // No backend produces this yet -- see HostEvent.textInput's doc
-            // comment. When one does, it should carry composed text past
-            // handleKeyDown's ASCII-only keysym mapping below, not alongside
-            // it: firing both for the same keystroke would double-insert.
-            if let focusedNode {
-                log.trace("text input \(text.debugDescription) (focus: \(focusedNode))")
-            }
+            insertText(text)
         }
+    }
+
+    private func insertText(_ text: String) {
+        guard let focusedNode, let scene else { return }
+        guard let handler = scene.textInputHandlers[focusedNode] else { return }
+        guard case .textField(let field) = scene.root.find(focusedNode) else { return }
+        log.trace("text input \(text.debugDescription) (focus: \(focusedNode))")
+        handler(field.text + text)
     }
 
     /// X11 keysym for Backspace. Named here rather than imported from a

@@ -27,17 +27,27 @@ The initial product goal is narrower:
     compiler/toolchain strategy, host abstractions, package layout.
 4.  `04-compatibility-specification.md` --- compatibility tiers, API
     policy, app manifest, unsupported behavior.
-5.  `compatibility-registry.md` --- generated symbol/domain/level table
+5.  `alpha-compatibility-contract.md` --- versioned Stage 5 alpha contract
+    tying conformance IDs, registry entries, CLI behavior, and visual baselines
+    to compatibility version `0.1`.
+6.  `compatibility-registry.md` --- generated symbol/domain/level table
     from the Stage 4 compatibility registry.
-6.  `05-implementation-roadmap.md` --- research spikes, MVP phases, exit
+7.  `05-implementation-roadmap.md` --- research spikes, MVP phases, exit
     criteria, post-MVP direction.
-7.  `06-testing-strategy.md` --- unit, conformance, integration, visual,
+8.  `06-testing-strategy.md` --- unit, conformance, integration, visual,
     performance, and security testing.
-8.  `07-legal-distribution-boundaries.md` --- clean-room principles,
+9.  `07-legal-distribution-boundaries.md` --- clean-room principles,
     trademarks, proprietary assets, contributor rules.
-9.  `Cider_DESIGN.md` --- locked brand/design specification: palette,
+10. `install.md` --- source-install path and packaging status for the alpha
+    track.
+11. `known-issues.md` --- Stage 5 known-issues database for public-alpha caveats.
+12. `performance-baseline.md` --- repeatable performance-baseline command set
+    and measurement scope.
+13. `stage5-alpha-readiness.md` --- interpretation of `cider alpha-readiness`
+    gates before tagging public alpha.
+14. `Cider_DESIGN.md` --- locked brand/design specification: palette,
     logo direction, typography, UI direction, voice, and misuse rules.
-10. `Cider Branding.md` --- exploratory brand rationale that led to the
+15. `Cider Branding.md` --- exploratory brand rationale that led to the
     locked design direction.
 
 ## Working Project Definition

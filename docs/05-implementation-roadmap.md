@@ -67,7 +67,10 @@ Implement:
 -   lifecycle simulation;
 -   basic permission model.
 
-**Exit:** Notes and REST-client reference applications work end to end.
+**Exit:** Notes and REST-client reference applications work end to end. This is
+covered by conformance tests plus `scripts/validate-stages3-4.sh`, which builds
+both apps, runs them under Xvfb through the real X11 backend, types/saves in
+Notes, and clicks through the REST client to an HTTP 200 response.
 
 ## Stage 4 --- Developer Experience
 
@@ -91,9 +94,16 @@ Implemented developer-experience surfaces:
 **Exit:** A new contributor can create a template, run a sample, modify it,
 scan for unsupported calls, inspect the project/runtime graphically, view
 network/storage state, iterate through file-watching rebuild/relaunch, and
-regenerate compatibility docs from published commands.
+regenerate compatibility docs from published commands. This contributor flow is
+covered by `scripts/validate-stages3-4.sh`.
 
 ## Stage 5 --- Alpha
+
+Stage 5 is now in progress. The first alpha-readiness slice adds a versioned
+compatibility contract (`docs/alpha-compatibility-contract.md`), alpha readiness
+reporting (`cider alpha-readiness`), source-install documentation, a known-issues
+database, and a performance-baseline document. These make the remaining public
+alpha gates visible, but they do not by themselves complete Stage 5.
 
 Requirements:
 

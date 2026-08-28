@@ -1,6 +1,10 @@
 //  Stage 3 application-service conformance tests.
 
 import XCTest
+import Foundation
+#if canImport(Glibc)
+import Glibc
+#endif
 
 import CiderCore
 import CiderRuntime
@@ -149,6 +153,47 @@ final class Stage3ServiceTests: XCTestCase {
         }
     }
 
+    /// NET-HTTP-001: HTTP requests can complete against a deterministic loopback server.
+    func testNET_HTTP_001_httpReturnsLoopbackResponseWhenNetworkIsGranted() async throws {
+        let server = try DeterministicHTTPServer(
+            statusCode: 203,
+            body: "{\"message\":\"hello from cider\"}"
+        )
+        try server.start()
+        defer { server.stop() }
+
+        let harness = try ConformanceHarness(
+            ServiceProbeApp(),
+            permissions: AppPermissions(network: true, localStorage: false)
+        )
+        try harness.launch()
+
+        let response = try await CiderHTTP.get(server.url)
+
+        XCTAssertEqual(response.statusCode, 203)
+        XCTAssertEqual(response.body, "{\"message\":\"hello from cider\"}")
+        XCTAssertEqual(server.requestPath, "/stage3-http")
+    }
+
+    /// NET-HTTP-001: blocking HTTP preserves the response status for button-action demos.
+    func testNET_HTTP_001_getBlockingReturnsLoopbackStatusCode() throws {
+        let server = try DeterministicHTTPServer(statusCode: 204, body: "")
+        try server.start()
+        defer { server.stop() }
+
+        let harness = try ConformanceHarness(
+            ServiceProbeApp(),
+            permissions: AppPermissions(network: true, localStorage: false)
+        )
+        try harness.launch()
+
+        let response = try CiderHTTP.getBlocking(server.url)
+
+        XCTAssertEqual(response.statusCode, 204)
+        XCTAssertEqual(response.body, "")
+        XCTAssertEqual(server.requestPath, "/stage3-http")
+    }
+
     private func temporarySandbox() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("cider-stage3-\(UUID().uuidString)", isDirectory: true)
@@ -165,3 +210,101 @@ struct ServiceProbeApp: CiderApp {
         Text("Services")
     }
 }
+
+#if canImport(Glibc)
+/// Single-request HTTP/1.1 loopback fixture for deterministic CiderHTTP tests.
+///
+/// The fixture deliberately binds to port 0 so the OS chooses an available local
+/// port, accepts one request, records its path, and returns a fixed UTF-8 body.
+/// It keeps NET-HTTP-001 honest without depending on the public internet.
+final class DeterministicHTTPServer: @unchecked Sendable {
+    private let statusCode: Int
+    private let body: String
+    private var socketFD: Int32 = -1
+    private let queue = DispatchQueue(label: "cider-deterministic-http-server")
+    private let lock = NSLock()
+    private var capturedPath: String?
+
+    init(statusCode: Int, body: String) throws {
+        self.statusCode = statusCode
+        self.body = body
+    }
+
+    var url: String {
+        "http://127.0.0.1:\(port)/stage3-http"
+    }
+
+    var requestPath: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return capturedPath
+    }
+
+    private var port: UInt16 {
+        var address = sockaddr_in()
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        withUnsafeMutablePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                _ = Glibc.getsockname(socketFD, sockaddrPointer, &length)
+            }
+        }
+        return UInt16(bigEndian: address.sin_port)
+    }
+
+    func start() throws {
+        socketFD = Glibc.socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+        guard socketFD >= 0 else { throw NSError(domain: "DeterministicHTTPServer", code: 1) }
+
+        var yes: Int32 = 1
+        setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &yes, socklen_t(MemoryLayout<Int32>.size))
+
+        var address = sockaddr_in()
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = 0
+        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        let bindResult = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                Glibc.bind(socketFD, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard bindResult == 0 else { stop(); throw NSError(domain: "DeterministicHTTPServer", code: 2) }
+        guard Glibc.listen(socketFD, 1) == 0 else { stop(); throw NSError(domain: "DeterministicHTTPServer", code: 3) }
+
+        queue.async { [self] in handleOneRequest() }
+    }
+
+    func stop() {
+        if socketFD >= 0 {
+            Glibc.close(socketFD)
+            socketFD = -1
+        }
+    }
+
+    private func handleOneRequest() {
+        let client = Glibc.accept(socketFD, nil, nil)
+        guard client >= 0 else { return }
+        defer { Glibc.close(client) }
+
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let count = Glibc.read(client, &buffer, buffer.count)
+        if count > 0,
+           let request = String(bytes: buffer.prefix(Int(count)), encoding: .utf8),
+           let requestLine = request.split(separator: "\r\n").first {
+            let parts = requestLine.split(separator: " ")
+            if parts.count >= 2 {
+                lock.lock()
+                capturedPath = String(parts[1])
+                lock.unlock()
+            }
+        }
+
+        let responseBody = Array(body.utf8)
+        let header = "HTTP/1.1 \(statusCode) Test\r\nContent-Type: application/json\r\nContent-Length: \(responseBody.count)\r\nConnection: close\r\n\r\n"
+        var bytes = Array(header.utf8) + responseBody
+        let byteCount = bytes.count
+        bytes.withUnsafeMutableBytes { raw in
+            _ = Glibc.write(client, raw.baseAddress, byteCount)
+        }
+    }
+}
+#endif

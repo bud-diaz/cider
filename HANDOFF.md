@@ -9,40 +9,78 @@ session, whether or not the milestone finished.
 
 ## Status
 
-**This original Stage 1/2 plan is complete, a Stage 3 services MVP has been
-layered on top, and Stage 4 developer-experience MVP command coverage is now
-implemented.**
-Every original milestone (Part A, B1-B9) is implemented,
-pushed, and confirmed green on CI — Stage 1 is closed and Stage 2 (UI MVP) is
-done. The latest local continuation adds Stage 4 compatibility registry/scanner,
-generated docs, inspector/network/storage viewers, templates, and dev-loop
-planning; it has been Docker-verified locally but not yet pushed or CI-confirmed. The
-prior Stage 3 service APIs and reference apps remain local/unpushed from the
-previous continuation. The remaining loose ends are interactive/manual
-validation: B9's Stage 2 UI showcase has been built but not tapped through under
-`cider run`, and the new Stage 3 notes/REST examples have been build-verified but
-not interactively run.
+**This original Stage 1/2 plan is complete; Stage 3 services and Stage 4
+developer-experience are now closed at MVP scope; Stage 5 alpha-readiness is now
+started but not complete.** Every original milestone (Part A, B1-B9) is
+implemented, pushed, and confirmed green on CI — Stage 1 is closed and Stage 2
+(UI MVP) is done. The latest local Stage 3/4 continuation closes the verification
+gap: Notes and REST-client reference apps are built and smoke-run under `cider
+run`/Xvfb through the real X11 backend, the Stage 4 contributor flow is covered
+end to end, and `scripts/validate-stages3-4.sh` records that repeatable
+validation path. The newest Stage 5 continuation adds alpha readiness reporting
+and docs, but intentionally leaves public-alpha release gates marked partial.
+These latest local changes have been Docker-verified but are not yet pushed or
+CI-confirmed.
 
-Note: `swift` is not installed on the host, so local verification for this
-continuation used the same Swift 6.0 Noble Docker path as CI. Older Done entries
-that cite CI still rest on GitHub Actions results; the latest Stage 3 entry rests
-on the Docker commands recorded below until it is pushed and CI runs.
+Note: `swift` is not installed on the host, so local verification for these
+continuations used the same Swift 6.0 Noble Docker path as CI. Older Done entries
+that cite CI still rest on GitHub Actions results; the latest local entries rest
+on the Docker commands recorded below until they are pushed and CI runs.
 
-**Caveat carried from B3, still true, now more relevant**: CI's `swift
-build`/`swift test` compile the X11 C shim but never execute it — every
-test uses the headless `TestingHostBackend`. A green CI run is not
-evidence that scrolling or key events actually work when `cider run`
-opens a real X11 window. **B5 specifically depends on this being true for
-typing to work at all**: it reads raw keysyms straight from `XLookupKeysym`
-(no Xutf8LookupString), on the premise that X11's printable-ASCII keysyms
-equal their Unicode code points. That premise is standard, documented
-X11 behavior, not a guess particular to this codebase — but it has only
-been exercised through synthetic `TestingHostBackend` events with
-hand-picked keyCode values, never a real keyboard. Someone with real
-display access should run `examples/hello-cider`, focus a text field, and
-confirm actual typing works before this is trusted end-to-end.
+**Latest continuation (Stage 5 alpha-readiness slice):** Started Stage 5 without
+overclaiming public alpha completion. Added `AlphaReadinessReport` in
+`compiler-support/Sources/CiderProject/AlphaReadiness.swift` and the CLI command
+`cider alpha-readiness`, which publishes alpha version `0.1.0-alpha.0`,
+compatibility contract `0.1`, and a gate-by-gate report for the Stage 5 roadmap
+requirements. Added `tests/unit/AlphaReadinessTests.swift` for gate status,
+reference-app counting, and Ubuntu CI detection. Added docs for the versioned
+alpha contract (`docs/alpha-compatibility-contract.md`), source install and
+packaging status (`docs/install.md`), known issues (`docs/known-issues.md`),
+performance-baseline commands (`docs/performance-baseline.md`), and readiness
+interpretation (`docs/stage5-alpha-readiness.md`), and linked them from
+`docs/README.md`/`README.md`. Updated `SECURITY.md` to reflect the current Stage 3
+service permission model and the now-existing loopback-only dev console.
+Verification in Swift 6.0 Noble Docker: focused `AlphaReadinessTests` passed 2/2;
+`swift build` passed; `.build/debug/cider alpha-readiness --path /home/bud/cider`
+reported every Stage 5 gate as partial with 4 reference apps and Ubuntu 24.04 CI;
+root `swift test` passed 221/221; `scripts/validate-stages3-4.sh` passed.
 
-**Latest continuation (Stage 4 graphical developer-experience closure):** Added
+**X11 backend caveat updated by the Stage 3/4 closure:** CI's `swift build` and
+`swift test` compile the X11 C shim but most automated behavior still uses the
+headless `TestingHostBackend`. The Stage 3/4 smoke script now also launches real
+X11 windows under Xvfb and drives them with `xdotool`, so basic pointer clicks,
+keymap text input, save/load interaction, and a REST-client GET have been
+exercised through the Linux backend. The backend now emits XLookupString-backed
+`HostEvent.textInput` for basic text and keeps raw `keyDown` for controls such as
+Backspace. Full XIM/XIC/IME composition is still not implemented.
+
+**Latest continuation (Stage 3/4 MVP closure):** Finished the remaining MVP-scope
+Stage 3 and Stage 4 work. The Linux X11 backend now converts basic keymap text
+with `XLookupString` into `HostEvent.textInput`, and the runtime consumes
+`textInput` by appending to the focused `TextField`; raw key events remain for
+Backspace/control handling. `CiderHTTP.getBlocking` now uses `URLSession` so the
+REST-client demo preserves real HTTP status codes instead of returning status 0.
+`cider init` now writes a package dependency pointing at the active Cider checkout
+when invoked from the repo, so newly created templates can actually build and run
+as part of the contributor flow. Added `scripts/validate-stages3-4.sh`, which
+builds and smoke-runs the Notes and REST-client reference apps under Xvfb with
+`xdotool`, then validates the Stage 4 flow: init, clean scan, inspect, network,
+storage, dev-loop, compatibility-docs, template build/run/click, `cider dev
+--once`, and unsupported-API scanner diagnostics. Verification in Swift 6.0 Noble
+Docker: focused Stage 3/TextField/template tests passed; `scripts/validate-stages3-4.sh`
+passed.
+
+**Previous continuation (Stage 3 HTTP deterministic coverage):** Closed the Stage 3
+HTTP real-I/O verification gap for the service MVP. `tests/conformance/Stage3ServiceTests.swift`
+now includes a deterministic one-request loopback HTTP/1.1 fixture that binds to
+`127.0.0.1` on an OS-assigned port, records the requested path, and returns a
+fixed JSON body. `NET-HTTP-001` now covers both permission denial before network
+access and a real local `CiderHTTP.get` response path when `permissions.network`
+is granted. Verification was run in the Swift 6.0 Noble Docker environment:
+focused `Stage3ServiceTests.testNET_HTTP_001_httpReturnsLoopbackResponseWhenNetworkIsGranted`
+passed, root `swift test` passed 217/217, and root `swift build` passed.
+
+**Previous continuation (Stage 4 graphical developer-experience closure):** Added
 `cider dev`, a loopback-only browser developer console that prepares `.cider/dev`,
 serves dashboard routes from a small local HTTP server, exposes structured
 inspector snapshots, file-watching rebuild/relaunch orchestration, request capture
@@ -152,9 +190,10 @@ added). Example app builds also passed for `examples/hello-cider` and
 mounting at `/workspace` makes SwiftPM identify the path dependency as
 `workspace`, which breaks examples that name package `Cider`).
 
-**Remaining caveat:** B9's reference app (`examples/ui-showcase`) still has not
-been interactively run under `cider run` with a real/Xvfb display and tapped
-through. The example is build-verified only.
+**Remaining caveat:** B9's Stage 2 showcase app (`examples/ui-showcase`) remains
+outside the Stage 3/4 closure scope. It is build-verified and its primitives are
+covered by conformance/visual tests, but it still has not had a full human UX
+tap-through pass under `cider run`.
 
 ## Done
 
@@ -260,11 +299,11 @@ through. The example is build-verified only.
     a wheel release carries nothing to report); new `KeyPress`/`KeyRelease`
     cases report the raw keysym via `XLookupKeysym`.
     `X11Window.swift` translates all three into `HostEvent` cases.
-  - **Deliberately NOT implemented**: `Xutf8LookupString`/XIM/XIC
-    composed-text input in the X11 shim, so the Linux backend does not
-    yet actually produce `.textInput` events (only `TestingHostBackend`
-    can, by construction — it queues whatever `HostEvent` it's handed).
-    See Deviations.
+  - **Originally deferred, now partially superseded by the Stage 3/4 MVP closure**:
+    full `Xutf8LookupString`/XIM/XIC composed text remains deferred, but the X11
+    shim now uses `XLookupString` to produce `.textInput` for basic keymap text.
+    `TestingHostBackend` can still synthesize arbitrary `.textInput` events for
+    tests. See Deviations for the remaining full-IME limitation.
   - Tests: extended `tests/integration/PointerTranslationTests.swift`'s
     non-touch coverage to the four new cases, and added
     `tests/conformance/HostInputPlumbingTests.swift` (unnumbered smoke
@@ -635,26 +674,13 @@ through. The example is build-verified only.
   session did not have. The missing image baseline has since been recorded in
   the visual-baselines continuation above.
 
-- **B3's `HostEvent.textInput` is not implemented by the Linux backend.**
-  The plan called for `Xutf8LookupString` in the X11 shim. That needs an
-  `XOpenIM`/`XCreateIC` input-method setup this session judged too risky
-  to add blind: it's new C code with real failure modes (locale/IM
-  availability varies by environment, including under Xvfb), touching
-  the same window-open path all of Stage 0/1 depends on, with zero
-  ability in this session to compile-test the C changes behaviorally
-  (see the CI caveat under Status) let alone run them interactively.
-  `keyDown`/`keyUp` (via `XLookupKeysym`, no new X resources) and
-  `scroll` (reusing the already-selected `ButtonPressMask`) were judged
-  low-risk enough to implement for real; composed text input was not.
-  `HostEvent.textInput` exists and is fully wired through the runtime
-  regardless, because `TestingHostBackend` can synthesize it for tests
-  with no dependency on the X11 shim — so B5 (TextField) can be built
-  and conformance-tested against it even before the Linux backend
-  actually produces one. Whoever picks up B5 needs to either implement
-  Xutf8LookupString/XIM/XIC in the C shim then (with real display access
-  to test it), or explicitly scope B5 to keyDown-driven text entry
-  (backspace, printable ASCII via keysym) without full IME composition
-  and note that as a known limitation.
+- B3 originally deferred full composed text. The Stage 3/4 MVP closure added
+  basic X11 keymap text by using `XLookupString` on `KeyPress` and routing the
+  resulting bytes through `HostEvent.textInput`; `ApplicationRuntime` now appends
+  `.textInput` to the focused text field. This deliberately stops short of full
+  XIM/XIC setup and `Xutf8LookupString`, so dead keys and IME composition are
+  still future work. Raw `keyDown` remains the path for Backspace and other
+  control keys.
 
 - B3 shipped `HostEvent.scroll` without a `location`, which B4 then had
   to add back in. In hindsight this should have been obvious in B3
@@ -665,24 +691,30 @@ through. The example is build-verified only.
 
 ## Open issues
 
-- **B9's reference app (`examples/ui-showcase`) has never actually been
-  run.** CI now *builds* it (see B9's Done entry), which is real signal
-  that the compatibility API is reachable and the app type-checks, but
-  nobody has run it under `cider run`/Xvfb and looked at it, tapped
-  through it, or confirmed the modal/navigation/list interaction actually
-  feels right end-to-end. Do that before calling Stage 2 "done" in any
-  stronger sense than "the pipeline compiles and the conformance suite
-  passes."
-- **The new Stage 3 reference apps are build-verified only.**
-  `examples/notes-cider` and `examples/rest-client-cider` compile in the
-  Swift 6.0 Noble Docker environment, but have not been run under `cider run`,
-  typed into, clicked through, or visually inspected. The REST-client app also
-  uses `CiderHTTP.getBlocking` because there is no event-loop-friendly async task
-  API yet.
-- **HTTP real I/O needs deterministic coverage.** `NET-HTTP-001` currently
-  proves permission enforcement before network access; it does not prove a real
-  HTTP response path against a deterministic local server. Add that before
-  treating CiderHTTP as stronger than an MVP service surface.
+- **Stage 5 is started, not complete.** `cider alpha-readiness` currently reports
+  all public-alpha gates as partial: source install is documented but packaging is
+  not shipped; the compatibility contract is documented but not tagged; security
+  and contribution docs exist but still need public contact/license decisions;
+  known-issues and performance-baseline docs exist but measured release numbers
+  are not published; there are 4 reference apps, not 10; CI currently names only
+  Ubuntu 24.04. Do not mark Stage 5 complete until these partial gates are either
+  closed or explicitly accepted as alpha release caveats.
+- **B9's Stage 2 UI-showcase reference app (`examples/ui-showcase`) remains a
+  separate Stage 2 manual-polish caveat.** Stage 3/4 closure did not broaden
+  scope to a full UI-showcase walkthrough; the app is still build-verified and
+  covered by primitive conformance/visual tests, but not exhaustively tapped
+  through as a human UX pass.
+- **The Stage 3 reference apps now have Xvfb-backed smoke coverage.**
+  `scripts/validate-stages3-4.sh` builds `examples/notes-cider` and
+  `examples/rest-client-cider`, launches both through `cider run --no-build
+  --inspect` against the real X11 backend, types/saves in Notes, and clicks the
+  REST-client GET path through to an HTTP 200 response. This is smoke coverage,
+  not a substitute for a human UX pass or a broader service matrix.
+- **HTTP real I/O now has deterministic conformance coverage.** `NET-HTTP-001`
+  uses a loopback one-request HTTP fixture to prove `CiderHTTP.get` can receive a
+  real response when network permission is granted, while keeping the test suite
+  independent of the public internet. This is still an MVP client surface; broader
+  methods/headers/body streaming/error-shaping remain future service work.
 - **Stage 4 graphical DX is now implemented as a local dev console.** `cider dev`
   adds the graphical inspector, polling file watcher with rebuild/relaunch,
   CiderHTTP request capture, sandbox browser/reset and event timeline. This is

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CIDER Dev Dashboard — Static Preview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --cider-black: #10100F;
+      --cider-graphite: #1C1C1A;
+      --cider-surface: #242421;
+      --cider-border: #34342F;
+      --cider-white: #F5F1E8;
+      --cider-muted: #8F8D86;
+      --cider-amber: #E89A2F;
+      --cider-amber-bright: #FFB547;
+      --cider-radius-sm: 6px;
+      --cider-radius-md: 8px;
+      --cider-radius-lg: 12px;
+      --cider-motion-fast: 150ms;
+      --cider-motion-standard: 220ms;
+      --cider-motion-large: 320ms;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(232, 154, 47, 0.14), transparent 32rem),
+        linear-gradient(180deg, #151513 0%, var(--cider-black) 44%);
+      color: var(--cider-white);
+    }
+    code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .shell { width: min(1180px, calc(100vw - 40px)); margin: 20px auto; border: 1px solid var(--cider-border); border-radius: var(--cider-radius-lg); background: rgba(28, 28, 26, 0.92); overflow: hidden; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34); }
+    header { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--cider-border); background: linear-gradient(180deg, rgba(36,36,33,.96), rgba(28,28,26,.96)); }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .press-mark { position: relative; width: 40px; height: 40px; border: 5px solid var(--cider-amber); border-right-color: transparent; border-radius: 10px 3px 3px 10px; flex: 0 0 auto; }
+    .press-mark::before { content: ""; position: absolute; top: -10px; left: 11px; width: 10px; height: 5px; border-radius: 2px; background: var(--cider-amber); }
+    .press-mark::after { content: "↓"; position: absolute; inset: 2px 0 0 11px; color: var(--cider-amber-bright); font: 800 20px/30px ui-monospace, monospace; }
+    .wordmark { letter-spacing: .28em; font-weight: 800; font-size: 13px; line-height: 1; }
+    .subtitle { margin-top: 5px; color: var(--cider-muted); font-size: 13px; }
+    .status-pill { border: 1px solid rgba(232,154,47,.45); border-radius: 999px; padding: 7px 10px; background: rgba(232,154,47,.08); color: var(--cider-white); font-size: 12px; }
+    .status-pill strong { color: var(--cider-amber-bright); font-weight: 700; }
+    nav { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--cider-border); background: var(--cider-graphite); }
+    button { appearance: none; border: 1px solid var(--cider-border); border-radius: var(--cider-radius-md); background: var(--cider-surface); color: var(--cider-white); padding: 8px 11px; font: inherit; font-size: 13px; cursor: pointer; transition: transform var(--cider-motion-fast) var(--ease-out), border-color var(--cider-motion-fast) var(--ease-out), background-color var(--cider-motion-fast) var(--ease-out), color var(--cider-motion-fast) var(--ease-out); }
+    button[aria-selected="true"] { border-color: var(--cider-amber); background: rgba(232,154,47,.12); color: var(--cider-amber-bright); }
+    button:active { transform: scale(.97); }
+    @media (hover: hover) and (pointer: fine) { button:hover, .file:hover, .node:hover { border-color: rgba(255,181,71,.72); background: rgba(232,154,47,.09); } }
+    main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr); gap: 14px; padding: 14px; }
+    .panel { border: 1px solid var(--cider-border); border-radius: var(--cider-radius-lg); background: var(--cider-surface); overflow: hidden; }
+    .panel h2 { margin: 0; padding: 13px 14px 9px; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; border-bottom: 1px solid var(--cider-border); }
+    .panel-body { padding: 14px; }
+    .pipeline { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 10px; color: var(--cider-muted); font-size: 12px; margin-bottom: 14px; }
+    .layer { border: 1px solid var(--cider-border); border-radius: var(--cider-radius-md); padding: 10px; background: var(--cider-graphite); color: var(--cider-white); }
+    .arrow { color: var(--cider-amber-bright); }
+    .node, .request, .file { border: 1px solid transparent; border-bottom-color: var(--cider-border); padding: 9px 10px; font-size: 13px; transition: background-color var(--cider-motion-fast) var(--ease-out), border-color var(--cider-motion-fast) var(--ease-out); }
+    .node:last-child, .request:last-child, .file:last-child { border-bottom-color: transparent; }
+    .muted { color: var(--cider-muted); }
+    .amber { color: var(--cider-amber-bright); }
+    pre { margin: 0; border: 1px solid var(--cider-border); border-radius: var(--cider-radius-md); background: var(--cider-graphite); color: var(--cider-white); padding: 12px; overflow: auto; font-size: 12px; line-height: 1.6; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; } }
+    @media (max-width: 820px) { main { grid-template-columns: 1fr; } header { grid-template-columns: 1fr; } nav { overflow-x: auto; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="press-mark" aria-hidden="true"></div>
+        <div>
+          <div class="wordmark">CIDER</div>
+          <div class="subtitle">Dev dashboard · app → translation → host</div>
+        </div>
+      </div>
+      <div class="status-pill mono">Fixture · <strong>runtime ready</strong></div>
+    </header>
+    <nav aria-label="Dashboard sections">
+      <button aria-selected="true">Inspector</button>
+      <button>Network</button>
+      <button>Sandbox</button>
+      <button>Events</button>
+    </nav>
+    <main>
+      <section class="panel">
+        <h2>Inspector</h2>
+        <div class="panel-body">
+          <div class="pipeline mono"><div class="layer">Swift app</div><div class="arrow">↓</div><div class="layer">Cider runtime</div><div class="arrow">↓</div><div class="layer">Linux host</div></div>
+          <div class="node mono"><strong>VStack</strong> <span class="muted">root</span> <span class="amber">depth 0</span></div>
+          <div class="node mono" style="padding-left: 28px"><strong>Text</strong> <span class="muted">root/0</span> Hello from Cider</div>
+          <div class="node mono" style="padding-left: 28px"><strong>Button</strong> <span class="muted">root/1</span> Run translation</div>
+        </div>
+      </section>
+      <aside class="panel">
+        <h2>Runtime activity</h2>
+        <div class="panel-body">
+          <div class="request mono"><strong>GET</strong> 200 /api/status<br><span class="muted">18ms · supported</span></div>
+          <div class="request mono"><strong>POST</strong> … /api/sandbox/reset<br><span class="muted">pending confirmation</span></div>
+          <pre>2026-08-23T12:04:09Z dev: dashboard started
+2026-08-23T12:04:10Z runtime: inspector snapshot captured</pre>
+        </div>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>

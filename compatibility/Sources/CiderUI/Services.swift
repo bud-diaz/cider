@@ -172,8 +172,18 @@ public enum CiderHTTP {
         if let proxy = CiderServiceContext.current?.requestCaptureProxyURL, !proxy.isEmpty {
             return try getBlockingThroughProxy(url.absoluteString, proxyURL: proxy)
         }
-        let data = try Data(contentsOf: url)
-        return CiderHTTPResponse(statusCode: 0, body: String(decoding: data, as: UTF8.self))
+        let semaphore = DispatchSemaphore(value: 0)
+        final class Box: @unchecked Sendable { var result: Result<(Data, URLResponse?), Error>? }
+        let box = Box()
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let error { box.result = .failure(error) }
+            else { box.result = .success((data ?? Data(), response)) }
+            semaphore.signal()
+        }.resume()
+        semaphore.wait()
+        let (data, response) = try box.result!.get()
+        guard let response else { return CiderHTTPResponse(statusCode: 0, body: String(decoding: data, as: UTF8.self)) }
+        return responseFrom(data: data, response: response)
     }
 
 

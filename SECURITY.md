@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Cider is **pre-alpha**. There is no released version, no packaged binary, and no
-support window. Only the current `main` branch is maintained.
+Cider is **pre-alpha / alpha-track**. There is no released version, no packaged
+binary, and no support window. Only the current `main` branch is maintained.
 
 Do not run Cider on untrusted input or in a security-sensitive environment. It
 executes developer-supplied Swift code in-process with no sandbox beyond what the
@@ -65,16 +65,16 @@ developer-owned code but still isolates applications. Against that model:
 
 Stated plainly so nobody has to discover them:
 
-- **No application sandbox.** An application runs with the privileges of the user
-  who launched it. Per-application data roots and capability enforcement are
-  planned; today the manifest's permissions are parsed and carried but nothing
-  enforces them, because no service uses them yet.
+- **No OS-level process sandbox.** An application runs with the privileges of the
+  user who launched it. Cider's project-owned Stage 3 services enforce network
+  and local-storage permissions and scope file APIs to per-application data roots,
+  but arbitrary developer Swift code still executes as local user code.
 - **The C shims handle untrusted font data.** FreeType parses fonts resolved from
   the host's fontconfig database. They are compiled clean under `-Wall -Wextra`
   and copy defensively, but they have not been fuzzed.
-- **No inspection interface exists yet**, so there is nothing bound to a port. The
-  requirement that it be local-only is recorded in
-  `docs/02-product-requirements.md` and will apply when it does.
+- **The developer inspection interface is local-only.** `cider dev` binds to
+  loopback and captures only Cider-owned runtime/service traffic; it is not a
+  hardened remote administration surface.
 - **No supply-chain verification.** Cider has no package dependencies today; when
   it does, the dependency policy in
   `docs/07-legal-distribution-boundaries.md` section 8 applies.

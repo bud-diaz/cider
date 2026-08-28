@@ -308,14 +308,23 @@ int cider_x11_window_poll_event(cider_x11_window *window, cider_x11_event *out) 
             out->button = (int)event.xbutton.button;
             return 1;
 
-        case KeyPress:
-            /* Index 0 is the unshifted keysym for the key's primary group --
-               enough for a raw key code. Composed/shifted text is
-               Xutf8LookupString's job, not implemented here; see the note in
-               cider_x11.h. */
-            out->kind = CIDER_X11_EVENT_KEY_DOWN;
-            out->key_sym = XLookupKeysym(&event.xkey, 0);
+        case KeyPress: {
+            KeySym key_sym = NoSymbol;
+            char text[sizeof(out->text)];
+            int text_length = XLookupString(&event.xkey, text, (int)sizeof(text), &key_sym, NULL);
+            out->key_sym = key_sym;
+            if (text_length > 0) {
+                if (text_length > (int)sizeof(out->text)) {
+                    text_length = (int)sizeof(out->text);
+                }
+                out->kind = CIDER_X11_EVENT_TEXT_INPUT;
+                memcpy(out->text, text, (size_t)text_length);
+                out->text_length = text_length;
+            } else {
+                out->kind = CIDER_X11_EVENT_KEY_DOWN;
+            }
             return 1;
+        }
 
         case KeyRelease:
             out->kind = CIDER_X11_EVENT_KEY_UP;

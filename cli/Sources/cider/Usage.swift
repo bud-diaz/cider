@@ -21,6 +21,7 @@ enum Usage {
         storage             List files in the app sandbox data root.
         init                Create a new Cider project template.
         dev-loop            Print the fast build plus run --no-build loop.
+        alpha-readiness     Report Stage 5 public-alpha gate status.
         dev                 Start the graphical local developer console.
         build               Compile the Cider project in the current directory.
         run                 Build if needed, then launch the application in a
@@ -54,6 +55,7 @@ enum Usage {
         cider storage --path examples/notes-cider
         cider init MyApp --app-id dev.example.myapp --path ./MyApp
         cider dev-loop --path examples/hello-cider
+        cider alpha-readiness
         cider dev --path examples/rest-client-cider --once
         cd examples/hello-cider && cider run
         cider run --log-level debug --inspect

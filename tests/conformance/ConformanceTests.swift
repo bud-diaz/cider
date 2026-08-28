@@ -708,8 +708,8 @@ final class ConformanceTests: XCTestCase {
     func testUI_TEXTFIELD_001_typingWhileFocusedAppendsToTheBoundState() throws {
         let harness = try ConformanceHarness(TextFieldTestApp())
         try harness.launch()
-
         let field = try XCTUnwrap(harness.runtime.currentRenderTree?.hitRegions.first)
+
         try harness.tap(at: Point(x: field.frame.midX, y: field.frame.midY))
 
         for character in "hi" {
@@ -717,6 +717,18 @@ final class ConformanceTests: XCTestCase {
         }
 
         XCTAssertTrue(harness.drawnStrings().contains("hi"))
+    }
+
+    /// UI-TEXTFIELD-001: composed text events append the host-provided text while focused.
+    func testUI_TEXTFIELD_001_textInputWhileFocusedAppendsComposedText() throws {
+        let harness = try ConformanceHarness(TextFieldTestApp())
+        try harness.launch()
+        let field = try XCTUnwrap(harness.runtime.currentRenderTree?.hitRegions.first)
+
+        try harness.tap(at: Point(x: field.frame.midX, y: field.frame.midY))
+        try harness.deliver([.textInput("hé")])
+
+        XCTAssertTrue(harness.drawnStrings().contains("hé"))
     }
 
     /// UI-TEXTFIELD-001: backspace removes one character from the end.
