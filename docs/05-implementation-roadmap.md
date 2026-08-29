@@ -87,6 +87,13 @@ Implemented developer-experience surfaces:
 -   graphical local developer console (`cider dev`) with structured inspector
     snapshots, file-watching rebuild/relaunch, request capture for `CiderHTTP`,
     sandbox browser/reset, and event timeline;
+-   visual editor in that console: the presented frame mirrored into the
+    browser, click-to-select over the node frames, and property changes written
+    back into the project's Swift source, with the existing file watcher closing
+    the loop. Properties only -- never structure -- and only where the value is
+    a literal the rewriter can prove it understands
+    (`docs/adr/0008-source-write-back.md`). Added after Stage 4 was closed;
+    the stage's exit criterion is unchanged;
 -   templates (`cider init`);
 -   documentation generator from compatibility registry
     (`cider compatibility-docs`).
