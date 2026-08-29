@@ -340,7 +340,10 @@ This is a Stage 4 MVP. The list is still long and honest:
   graphical local console, file-watching rebuild/relaunch, request capture, a
   rich sandbox browser, and an editor tab that mirrors the presented frame and
   selects views by clicking them. The frame mirror is throttled to five frames
-  a second and is written only under `cider dev`, never under `cider run`. The scanner is token-based, not a Swift parser, so it is
+  a second and is written only under `cider dev`, never under `cider run`. The
+  console binds to loopback and authenticates every request that changes state
+  with a per-run token, because a loopback port is reachable from any page a
+  browser has open. The scanner is token-based, not a Swift parser, so it is
   useful early warning machinery rather than a complete source-compatibility
   analyzer.
 

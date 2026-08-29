@@ -47,7 +47,8 @@ public struct Manifest: Equatable, Sendable {
         sandboxDataRoot: String = "",
         inspectorSnapshotPath: String = "",
         inspectorFramePath: String = "",
-        requestCaptureProxyURL: String = ""
+        requestCaptureProxyURL: String = "",
+        requestCaptureToken: String = ""
     ) -> LaunchDescriptor {
         LaunchDescriptor(
             appID: appID,
@@ -61,7 +62,8 @@ public struct Manifest: Equatable, Sendable {
             sandboxDataRoot: sandboxDataRoot,
             inspectorSnapshotPath: inspectorSnapshotPath,
             inspectorFramePath: inspectorFramePath,
-            requestCaptureProxyURL: requestCaptureProxyURL
+            requestCaptureProxyURL: requestCaptureProxyURL,
+            requestCaptureToken: requestCaptureToken
         )
     }
 }

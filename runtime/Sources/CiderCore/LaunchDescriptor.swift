@@ -52,6 +52,13 @@ public struct LaunchDescriptor: Equatable, Sendable {
     /// Local dev-mode proxy endpoint for capturing CiderHTTP requests. Empty means direct requests.
     public var requestCaptureProxyURL: String
 
+    /// The dev console's per-run token, sent with every capture POST.
+    ///
+    /// The console refuses an unauthenticated request that changes state, and
+    /// a capture records one. Empty outside `cider dev`, where there is no
+    /// console to talk to.
+    public var requestCaptureToken: String
+
     /// Root of this application's isolated on-disk data area, prepared by
     /// `cider run` before launch (docs/03-technical-architecture.md section
     /// 8: "per-app data roots"). Empty when the binary was started without
@@ -71,7 +78,8 @@ public struct LaunchDescriptor: Equatable, Sendable {
         sandboxDataRoot: String = "",
         inspectorSnapshotPath: String = "",
         inspectorFramePath: String = "",
-        requestCaptureProxyURL: String = ""
+        requestCaptureProxyURL: String = "",
+        requestCaptureToken: String = ""
     ) {
         self.version = version
         self.appID = appID
@@ -86,6 +94,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
         self.inspectorSnapshotPath = inspectorSnapshotPath
         self.inspectorFramePath = inspectorFramePath
         self.requestCaptureProxyURL = requestCaptureProxyURL
+        self.requestCaptureToken = requestCaptureToken
     }
 
     public func encoded() -> String {
@@ -105,6 +114,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
         inspector.snapshot-path = \(inspectorSnapshotPath)
         inspector.frame-path = \(inspectorFramePath)
         request-capture.proxy-url = \(requestCaptureProxyURL)
+        request-capture.token = \(requestCaptureToken)
 
         """
     }
@@ -172,7 +182,8 @@ public struct LaunchDescriptor: Equatable, Sendable {
             sandboxDataRoot: fields["sandbox.data-root"] ?? "",
             inspectorSnapshotPath: fields["inspector.snapshot-path"] ?? "",
             inspectorFramePath: fields["inspector.frame-path"] ?? "",
-            requestCaptureProxyURL: fields["request-capture.proxy-url"] ?? ""
+            requestCaptureProxyURL: fields["request-capture.proxy-url"] ?? "",
+            requestCaptureToken: fields["request-capture.token"] ?? ""
         )
     }
 }

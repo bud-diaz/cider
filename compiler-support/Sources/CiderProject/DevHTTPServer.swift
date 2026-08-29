@@ -14,6 +14,12 @@ public struct DevHTTPRequest: Sendable {
 }
 
 public final class DevHTTPServer: @unchecked Sendable {
+
+    /// Largest request body the console will assemble. An edit request is a few
+    /// hundred bytes; anything approaching this is a bug or an attack, and
+    /// reading it would let one connection hold the single-threaded accept loop.
+    public static let maximumBodyBytes = 1 << 20
+
     private let port: Int
     private let handler: @Sendable (DevHTTPRequest) -> DevDashboardResponse
     private var socketFD: Int32 = -1
@@ -71,21 +77,78 @@ public final class DevHTTPServer: @unchecked Sendable {
 
     private func handle(client: Int32) {
         #if canImport(Glibc)
-        var buffer = [UInt8](repeating: 0, count: 65536)
-        let count = Glibc.read(client, &buffer, buffer.count)
-        guard count > 0 else { return }
-        let data = Data(buffer.prefix(Int(count)))
-        guard let request = parse(data) else {
+        // Read the head first, then exactly as much body as Content-Length
+        // says. A single read() was enough for a GET and silently wrong for
+        // anything else: a browser routinely writes headers and body in
+        // separate segments, so a POST could arrive with its body truncated to
+        // nothing and no error anywhere.
+        var data = Data()
+        var chunk = [UInt8](repeating: 0, count: 16384)
+
+        func readMore() -> Bool {
+            let count = Glibc.read(client, &chunk, chunk.count)
+            guard count > 0 else { return false }
+            data.append(contentsOf: chunk.prefix(Int(count)))
+            return true
+        }
+
+        // Rescan only the new bytes, less the three that could hold a
+        // terminator split across two reads.
+        var scanned = 0
+        var bodyStart = Self.headerEnd(in: data, from: scanned)
+        while bodyStart == nil {
+            guard data.count <= Self.maximumBodyBytes else {
+                write(response: Self.tooLarge, to: client)
+                return
+            }
+            scanned = max(0, data.count - 3)
+            guard readMore() else { return }
+            bodyStart = Self.headerEnd(in: data, from: scanned)
+        }
+
+        guard let start = bodyStart, var request = parse(data, bodyStart: start) else {
             write(response: DevDashboardResponse(status: 400, contentType: "text/plain", body: Data("bad request".utf8)), to: client)
             return
         }
+
+        let declared = Int(request.headers["content-length"] ?? "") ?? 0
+        guard declared <= Self.maximumBodyBytes else {
+            write(response: Self.tooLarge, to: client)
+            return
+        }
+        while data.count - start < declared {
+            guard readMore() else { break }
+        }
+        request.body = Data(data.dropFirst(start).prefix(declared))
+
         write(response: handler(request), to: client)
         #endif
     }
 
-    private func parse(_ data: Data) -> DevHTTPRequest? {
-        guard let text = String(data: data, encoding: .utf8), let headerEnd = text.range(of: "\r\n\r\n") else { return nil }
-        let headerText = String(text[..<headerEnd.lowerBound])
+    private static let tooLarge = DevDashboardResponse(
+        status: 413,
+        contentType: "text/plain",
+        body: Data("CID0630: request body exceeds \(maximumBodyBytes) bytes".utf8)
+    )
+
+    /// Byte offset just past the `\r\n\r\n` that ends the request head, or nil
+    /// while the head is still incomplete. Searched over bytes rather than a
+    /// decoded String, because the body may not be valid UTF-8 and decoding the
+    /// whole buffer to find the head would fail on a binary upload.
+    private static func headerEnd(in data: Data, from offset: Int = 0) -> Int? {
+        let bytes = [UInt8](data)
+        guard bytes.count >= 4, offset <= bytes.count - 4 else { return nil }
+        for index in offset...(bytes.count - 4)
+        where bytes[index] == 0x0D && bytes[index + 1] == 0x0A && bytes[index + 2] == 0x0D && bytes[index + 3] == 0x0A {
+            return index + 4
+        }
+        return nil
+    }
+
+    private func parse(_ data: Data, bodyStart: Int) -> DevHTTPRequest? {
+        let terminator = 4
+        guard bodyStart >= terminator,
+              let headerText = String(data: data.prefix(bodyStart - terminator), encoding: .utf8) else { return nil }
         let lines = headerText.split(separator: "\r\n", omittingEmptySubsequences: false).map(String.init)
         guard let requestLine = lines.first else { return nil }
         let parts = requestLine.split(separator: " ").map(String.init)
@@ -109,18 +172,32 @@ public final class DevHTTPServer: @unchecked Sendable {
             let value = String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
             headers[key] = value
         }
-        let bodyStart = text.distance(from: text.startIndex, to: headerEnd.upperBound)
-        let body = data.dropFirst(bodyStart)
-        return DevHTTPRequest(method: parts[0], path: path, query: query, headers: headers, body: Data(body))
+        // The body is filled in by `handle`, which knows how much to wait for.
+        return DevHTTPRequest(method: parts[0], path: path, query: query, headers: headers, body: Data())
+    }
+
+    private static func reason(for status: Int) -> String {
+        switch status {
+        case 200: return "OK"
+        case 204: return "No Content"
+        case 400: return "Bad Request"
+        case 403: return "Forbidden"
+        case 404: return "Not Found"
+        case 409: return "Conflict"
+        case 413: return "Payload Too Large"
+        default: return "Error"
+        }
     }
 
     private func write(response: DevDashboardResponse, to client: Int32) {
         #if canImport(Glibc)
-        let reason = response.status == 200 ? "OK" : response.status == 204 ? "No Content" : response.status == 404 ? "Not Found" : "Error"
-        var header = "HTTP/1.1 \(response.status) \(reason)\r\n"
+        var header = "HTTP/1.1 \(response.status) \(Self.reason(for: response.status))\r\n"
         header += "Content-Type: \(response.contentType)\r\n"
         header += "Content-Length: \(response.body.count)\r\n"
         header += "Access-Control-Allow-Origin: http://127.0.0.1:\(port)\r\n"
+        for (name, value) in response.headers.sorted(by: { $0.key < $1.key }) {
+            header += "\(name): \(value)\r\n"
+        }
         header += "Connection: close\r\n\r\n"
         var bytes = Array(header.utf8) + Array(response.body)
         let byteCount = bytes.count

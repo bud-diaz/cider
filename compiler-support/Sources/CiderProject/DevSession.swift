@@ -92,7 +92,8 @@ public final class DevSession {
             sandboxDataRoot: sandboxRoot.path,
             inspectorSnapshotPath: workspace.inspectorSnapshotURL.path,
             inspectorFramePath: workspace.inspectorFrameURL.path,
-            requestCaptureProxyURL: String(dashboard.dashboardURL.dropLast())
+            requestCaptureProxyURL: String(dashboard.dashboardURL.dropLast()),
+            requestCaptureToken: dashboard.token
         )
         try write(descriptor)
         let process = Process()

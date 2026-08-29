@@ -144,6 +144,7 @@ public final class ApplicationRuntime: InvalidationTarget {
             appID: descriptor.appID,
             appName: descriptor.appName,
             requestCaptureProxyURL: descriptor.requestCaptureProxyURL,
+            requestCaptureToken: descriptor.requestCaptureToken,
             // Same sink, different channel: developer output interleaves with
             // Cider's in real order while staying visually distinguishable.
             log: log.scoped(to: .application),

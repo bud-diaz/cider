@@ -17,10 +17,19 @@ public struct DevDashboardResponse: Sendable {
     public var contentType: String
     public var body: Data
 
-    public init(status: Int = 200, contentType: String = "application/json", body: Data = Data()) {
+    /// Extra response headers, for the CORS preflight a token-gated route needs.
+    public var headers: [String: String]
+
+    public init(
+        status: Int = 200,
+        contentType: String = "application/json",
+        body: Data = Data(),
+        headers: [String: String] = [:]
+    ) {
         self.status = status
         self.contentType = contentType
         self.body = body
+        self.headers = headers
     }
 
     public static func text(_ text: String, contentType: String = "text/plain; charset=utf-8") -> DevDashboardResponse {
@@ -29,6 +38,60 @@ public struct DevDashboardResponse: Sendable {
 
     public static func json<T: Encodable>(_ value: T) -> DevDashboardResponse {
         DevDashboardResponse(contentType: "application/json", body: (try? JSONEncoder().encode(value)) ?? Data())
+    }
+
+    /// A refusal the dashboard can render: the four parts of a `Diagnostic`,
+    /// as JSON. `Diagnostic` itself stays non-`Codable` -- making a `CiderCore`
+    /// type serialisable for one consumer's convenience is a public API change
+    /// this does not need.
+    public static func refusal(_ diagnostic: Diagnostic, status: Int) -> DevDashboardResponse {
+        DevDashboardResponse(
+            status: status,
+            contentType: "application/json",
+            body: (try? JSONEncoder().encode(DevDiagnosticPayload(diagnostic))) ?? Data()
+        )
+    }
+}
+
+/// A `Diagnostic` flattened for the wire.
+public struct DevDiagnosticPayload: Codable, Equatable, Sendable {
+    public var code: String
+    public var summary: String
+    public var location: String?
+    public var reason: String?
+    public var remedy: String?
+
+    public init(_ diagnostic: Diagnostic) {
+        code = diagnostic.code
+        summary = diagnostic.summary
+        location = diagnostic.location?.description
+        reason = diagnostic.reason
+        remedy = diagnostic.remedy
+    }
+}
+
+/// The per-run secret the dashboard sends with every mutating request.
+///
+/// Loopback is not a security boundary: any web page the developer visits can
+/// POST to `127.0.0.1` and the browser will deliver it, even though CORS stops
+/// the page reading the reply. That was already true of the sandbox reset; it
+/// becomes far worse once a route can write a Swift file that `cider dev` then
+/// rebuilds and runs. A custom header also forces a CORS preflight, which a
+/// cross-origin simple request cannot send.
+public struct DevSessionToken: Codable, Equatable, Sendable {
+    public static let headerName = "x-cider-dev-token"
+
+    public var token: String
+
+    public init(token: String) {
+        self.token = token
+    }
+
+    /// 32 bytes of randomness, hex-encoded. Regenerated every `cider dev`, so a
+    /// token cannot outlive the session it belongs to.
+    public static func generate() -> DevSessionToken {
+        let bytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
+        return DevSessionToken(token: bytes.map { String(format: "%02x", $0) }.joined())
     }
 }
 
@@ -52,16 +115,31 @@ public final class DevDashboardServer: @unchecked Sendable {
     private let events: DevEventLog
     private let sandbox: SandboxBrowser
     private var captured: [CapturedHTTPRequest] = []
+    private let port: Int
+    private let sessionToken: DevSessionToken
     public var dashboardURL: String
     public var state: String = "ready"
 
-    public init(project: Project, workspace: DevWorkspace, events: DevEventLog, port: Int = 5757) {
+    public init(
+        project: Project,
+        workspace: DevWorkspace,
+        events: DevEventLog,
+        port: Int = 5757,
+        sessionToken: DevSessionToken = .generate()
+    ) {
         self.project = project
         self.workspace = workspace
         self.events = events
         self.sandbox = SandboxBrowser(project: project)
+        self.port = port
+        self.sessionToken = sessionToken
         self.dashboardURL = "http://127.0.0.1:\(port)/"
     }
+
+    /// The secret a caller must present to use a mutating route. Handed to the
+    /// running application through its launch descriptor, and to the dashboard
+    /// through a route CORS keeps same-origin.
+    public var token: String { sessionToken.token }
 
     public func writeStaticAssets() throws {
         try workspace.prepare()
@@ -70,9 +148,32 @@ public final class DevDashboardServer: @unchecked Sendable {
         try DevDashboardAssets.appJS.write(to: workspace.dashboardDirectory.appendingPathComponent("app.js"), atomically: true, encoding: .utf8)
     }
 
-    public func handle(method: String, path: String, query: [String: String] = [:], body: Data = Data()) -> DevDashboardResponse {
+    public func handle(
+        method: String,
+        path: String,
+        query: [String: String] = [:],
+        body: Data = Data(),
+        headers: [String: String] = [:]
+    ) -> DevDashboardResponse {
+        let verb = method.uppercased()
+
+        // A cross-origin page can reach a loopback port; CORS only stops it
+        // reading the reply. Every request that changes something -- and the
+        // route that hands out the token -- is checked before it is routed.
+        if verb == "OPTIONS" {
+            return preflight()
+        }
+        if verb != "GET", let refusal = refuseUnlessAuthorized(headers: headers) {
+            return refusal
+        }
+        if path == "/api/dev/session", let refusal = refuseUnlessSameOrigin(headers: headers) {
+            return refusal
+        }
+
         do {
-            switch (method.uppercased(), path) {
+            switch (verb, path) {
+            case ("GET", "/api/dev/session"):
+                return .json(sessionToken)
             case ("GET", "/"), ("GET", "/index.html"):
                 return .text(DevDashboardAssets.indexHTML, contentType: "text/html; charset=utf-8")
             case ("GET", "/assets/app.css"):
@@ -114,6 +215,62 @@ public final class DevDashboardServer: @unchecked Sendable {
         } catch {
             return DevDashboardResponse(status: 500, contentType: "text/plain", body: Data(String(describing: error).utf8))
         }
+    }
+
+    /// The preflight a custom request header forces. Answering it is what lets
+    /// the dashboard send `X-Cider-Dev-Token` at all.
+    private func preflight() -> DevDashboardResponse {
+        DevDashboardResponse(
+            status: 204,
+            contentType: "text/plain",
+            headers: [
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, \(DevSessionToken.headerName)",
+                "Access-Control-Max-Age": "600",
+            ]
+        )
+    }
+
+    private func refuseUnlessSameOrigin(headers: [String: String]) -> DevDashboardResponse? {
+        let allowed: Set<String> = ["http://127.0.0.1:\(port)", "http://localhost:\(port)"]
+        if let origin = headers["origin"], !allowed.contains(origin) {
+            return .refusal(Self.crossOrigin(detail: "Origin \(origin) is not this dashboard."), status: 403)
+        }
+        // A request with no Origin can still carry a forged Host, and a Host
+        // that is not this dashboard means the request was not aimed here.
+        let hosts: Set<String> = ["127.0.0.1:\(port)", "localhost:\(port)"]
+        if let host = headers["host"], !hosts.contains(host) {
+            return .refusal(Self.crossOrigin(detail: "Host \(host) is not this dashboard."), status: 403)
+        }
+        return nil
+    }
+
+    private func refuseUnlessAuthorized(headers: [String: String]) -> DevDashboardResponse? {
+        if let refusal = refuseUnlessSameOrigin(headers: headers) { return refusal }
+        guard headers[DevSessionToken.headerName] == sessionToken.token else {
+            return .refusal(
+                Diagnostic(
+                    code: "CID0631",
+                    summary: "dev console rejected an unauthenticated request",
+                    reason: """
+                        This request changes state and did not carry this session's \
+                        \(DevSessionToken.headerName) header.
+                        """,
+                    remedy: "Reload the dashboard at \(dashboardURL); it fetches a fresh token on load."
+                ),
+                status: 403
+            )
+        }
+        return nil
+    }
+
+    private static func crossOrigin(detail: String) -> Diagnostic {
+        Diagnostic(
+            code: "CID0631",
+            summary: "dev console rejected a cross-origin request",
+            reason: detail,
+            remedy: "Use the dashboard served by `cider dev`; the console answers only its own origin."
+        )
     }
 
     private func proxyFetch(body: Data) throws -> DevDashboardResponse {

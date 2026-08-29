@@ -383,6 +383,39 @@ async function json(path) {
   return await response.json();
 }
 
+// The console refuses an unauthenticated request that changes state. Loopback
+// is not a boundary -- any page can POST here and the browser delivers it -- so
+// every mutating call carries this session's token, and sending a custom header
+// also forces a preflight a cross-origin simple request cannot make.
+let sessionToken = '';
+
+async function loadSessionToken() {
+  const session = await json('/api/dev/session');
+  sessionToken = session && session.token ? session.token : '';
+}
+
+async function post(path, payload) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-cider-dev-token': sessionToken,
+    },
+    body: payload === undefined ? '' : JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const problem = await response.json();
+      if (problem && problem.summary) detail = `${problem.code}: ${problem.summary}`;
+    } catch (ignored) {
+      // A refusal without a JSON body still has its status line.
+    }
+    throw new Error(detail);
+  }
+  return response;
+}
+
 function severityForStatus(statusCode) {
   if (statusCode == null) return 'warning';
   if (statusCode >= 500) return 'error';
@@ -651,12 +684,18 @@ async function refresh() {
 
 $('resetSandbox').onclick = async () => {
   if (prompt('Type reset to clear the app sandbox') === 'reset') {
-    await fetch('/api/sandbox/reset', { method: 'POST' });
+    try {
+      await post('/api/sandbox/reset');
+    } catch (error) {
+      $('status').textContent = 'Sandbox reset refused: ' + error.message;
+      $('status').className = 'status-pill severity-error';
+      return;
+    }
     refresh();
   }
 };
 
+loadSessionToken().then(refresh);
 setInterval(refresh, 1000);
-refresh();
 """#
 }

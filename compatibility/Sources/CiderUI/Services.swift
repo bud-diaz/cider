@@ -214,18 +214,27 @@ public enum CiderHTTP {
         return CiderHTTPResponse(statusCode: proxyResponse.statusCode, body: proxyResponse.body)
     }
 
-    private static func getThroughProxy(_ urlString: String, proxyURL: String) async throws -> CiderHTTPResponse {
+    /// A capture POST carries the console's per-run token: the console refuses
+    /// an unauthenticated request that changes state, and recording a capture
+    /// changes state. The token arrives in the launch descriptor.
+    private static func proxyRequest(_ proxyURL: String) throws -> URLRequest {
         var request = URLRequest(url: try proxyEndpoint(proxyURL))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
+        if let token = CiderServiceContext.current?.requestCaptureToken, !token.isEmpty {
+            request.setValue(token, forHTTPHeaderField: "x-cider-dev-token")
+        }
+        return request
+    }
+
+    private static func getThroughProxy(_ urlString: String, proxyURL: String) async throws -> CiderHTTPResponse {
+        let request = try proxyRequest(proxyURL)
         let (data, _) = try await URLSession.shared.upload(for: request, from: try proxyPayload(for: urlString))
         return try responseFromProxyData(data)
     }
 
     private static func getBlockingThroughProxy(_ urlString: String, proxyURL: String) throws -> CiderHTTPResponse {
-        var request = URLRequest(url: try proxyEndpoint(proxyURL))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        var request = try proxyRequest(proxyURL)
         request.httpBody = try proxyPayload(for: urlString)
         let semaphore = DispatchSemaphore(value: 0)
         final class Box: @unchecked Sendable { var result: Result<Data, Error>? }

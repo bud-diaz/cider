@@ -20,6 +20,30 @@ across two Ubuntu LTS releases (24.04, 22.04).
 
 ## [Unreleased]
 
+### Security
+
+- **The dev console now authenticates every request that changes state.**
+  Loopback is not a security boundary: any web page a developer visits can POST
+  to `127.0.0.1` and the browser delivers it, even though CORS stops the page
+  reading the reply. That already reached `/api/sandbox/reset` and
+  `/api/proxy/fetch`. `cider dev` now mints a per-run token, hands it out only
+  to its own origin at `GET /api/dev/session`, and requires it in an
+  `X-Cider-Dev-Token` header on every mutating route (`CID0631`). `Origin` and
+  `Host` are validated on the same routes, and `OPTIONS` preflight is answered
+  so the custom header is usable at all.
+- The token reaches the running application through a new
+  `request-capture.token` launch-descriptor field, so `CiderHTTP`'s capture POST
+  stays authorised without widening the hole.
+
+### Fixed
+
+- `DevHTTPServer` read a request with a single `read()` and never consulted
+  `Content-Length`. A client that split its head and body across writes -- which
+  browsers routinely do -- could have its POST body silently truncated to
+  nothing. The server now reads the head, then exactly as many body bytes as
+  declared, capped at 1 MiB (`CID0630`) so one connection cannot hold the
+  single-threaded accept loop.
+
 ### Added
 
 **Developer console editor**
