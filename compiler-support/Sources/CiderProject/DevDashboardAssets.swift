@@ -31,14 +31,32 @@ public enum DevDashboardAssets {
     <div class="workspace-grid">
       <aside class="resource-sidebar" aria-label="Dashboard sections">
         <div class="sidebar-label">Resources</div>
-        <button class="resource-row active" data-tab="inspector" aria-selected="true" type="button"><span class="row-index">01</span><span><strong>Inspector</strong><small>view tree + render commands</small></span></button>
-        <button class="resource-row" data-tab="network" aria-selected="false" type="button"><span class="row-index">02</span><span><strong>Network</strong><small>CiderHTTP request capture</small></span></button>
-        <button class="resource-row" data-tab="sandbox" aria-selected="false" type="button"><span class="row-index">03</span><span><strong>Sandbox</strong><small>files + JSON preview</small></span></button>
-        <button class="resource-row" data-tab="events" aria-selected="false" type="button"><span class="row-index">04</span><span><strong>Events</strong><small>runtime event stream</small></span></button>
+        <button class="resource-row active" data-tab="editor" aria-selected="true" type="button"><span class="row-index">01</span><span><strong>Editor</strong><small>frame preview + properties</small></span></button>
+        <button class="resource-row" data-tab="inspector" aria-selected="false" type="button"><span class="row-index">02</span><span><strong>Inspector</strong><small>view tree + render commands</small></span></button>
+        <button class="resource-row" data-tab="network" aria-selected="false" type="button"><span class="row-index">03</span><span><strong>Network</strong><small>CiderHTTP request capture</small></span></button>
+        <button class="resource-row" data-tab="sandbox" aria-selected="false" type="button"><span class="row-index">04</span><span><strong>Sandbox</strong><small>files + JSON preview</small></span></button>
+        <button class="resource-row" data-tab="events" aria-selected="false" type="button"><span class="row-index">05</span><span><strong>Events</strong><small>runtime event stream</small></span></button>
       </aside>
 
       <main class="tab-stack">
-        <section id="inspector" class="tab-panel active" aria-labelledby="inspector-title">
+        <section id="editor" class="tab-panel active" aria-labelledby="editor-title">
+          <div class="split-panel">
+            <div class="editor-window focused-panel">
+              <div class="editor-titlebar"><div class="window-controls small" aria-hidden="true"><span></span><span></span><span></span></div><span id="editor-title" class="file-chip">device.frame</span><span class="editor-action">live</span></div>
+              <div id="stage" class="device-stage">
+                <canvas id="frame" class="device-frame" width="1" height="1" aria-label="Rendered application frame"></canvas>
+                <div id="overlay" class="node-overlay"></div>
+              </div>
+              <p id="frameStatus" class="stage-status">Waiting for a frame from the running application.</p>
+            </div>
+            <div class="proof-panel">
+              <div class="proof-header"><span id="properties-title">PROPERTIES</span><span id="selectionPath" class="stream-badge">nothing selected</span></div>
+              <div id="properties" class="proof-body" aria-labelledby="properties-title">Click a view in the preview to select it.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="inspector" class="tab-panel" aria-labelledby="inspector-title" hidden>
           <div class="editor-window focused-panel">
             <div class="editor-titlebar"><div class="window-controls small" aria-hidden="true"><span></span><span></span><span></span></div><span id="inspector-title" class="file-chip">Inspector.swiftui.tree</span><span class="editor-action">live</span></div>
             <div class="pipeline" aria-label="Swift app through Cider runtime into host"><span>Swift app</span><b>↓</b><span>Cider runtime</span><b>↓</b><span>Host</span></div>
@@ -286,6 +304,18 @@ button:focus-visible, .resource-row:focus-visible, .file:focus-visible, .node:fo
 .status-card.severity-error:hover { box-shadow: 0 0 32px -12px rgba(251, 113, 133, 0.45); }
 .split-panel { display: grid; grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr); gap: 14px; }
 .danger-action { color: var(--accent-rose); border-color: rgba(251, 113, 133, 0.45); background: rgba(251, 113, 133, 0.06); }
+.device-stage { position: relative; margin: 12px auto; width: fit-content; line-height: 0; border: 1px solid var(--border-default); border-radius: var(--radius-md); overflow: hidden; }
+.device-frame { display: block; max-width: 100%; height: auto; background: var(--bg-panel-deep); image-rendering: pixelated; }
+.node-overlay { position: absolute; inset: 0; }
+.node-box { position: absolute; border: 1px solid transparent; border-radius: 2px; cursor: pointer; background: transparent; padding: 0; }
+.node-box:focus-visible { outline: 1px solid var(--accent-amber); outline-offset: 1px; }
+.node-box.selected { border-color: var(--accent-amber); background: rgba(251, 191, 36, 0.10); }
+.stage-status { margin: 0; padding: 9px 13px; border-top: 1px solid var(--border-default); color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
+.prop-row { display: grid; grid-template-columns: minmax(90px, 0.5fr) minmax(0, 1fr); gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border-default); }
+.prop-row:last-child { border-bottom: 0; }
+.prop-name { color: var(--text-muted); }
+.prop-value { color: var(--text-primary); overflow-wrap: anywhere; }
+.prop-note { color: var(--text-dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
 .token-keyword { color: var(--accent-rose); }
 .token-identifier { color: var(--accent-amber); }
 .token-string { color: var(--accent-emerald); }
@@ -295,7 +325,7 @@ button:focus-visible, .resource-row:focus-visible, .file:focus-visible, .node:fo
 @media (hover: hover) and (pointer: fine) { button:hover { border-color: var(--border-hover); background: var(--bg-panel-hover); color: var(--text-primary); } .resource-row:hover { transform: translateX(2px); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; animation-iteration-count: 1 !important; transform: none !important; } }
 @media (max-width: 1120px) { .workspace-grid { grid-template-columns: 220px minmax(0, 1fr); } .status-rail { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border-default); grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 820px) { .dashboard-shell { width: calc(100vw - 20px); margin: 10px auto; } .ide-titlebar, .workspace-grid, .split-panel { grid-template-columns: 1fr; } .titlebar-actions { justify-content: flex-start; flex-wrap: wrap; } .resource-sidebar { border-right: 0; border-bottom: 1px solid var(--border-default); } .status-rail { grid-template-columns: 1fr; } .pipeline { grid-template-columns: 1fr; } .pipeline b { text-align: center; transform: rotate(0deg); } }
+@media (max-width: 820px) { .dashboard-shell { width: calc(100vw - 20px); margin: 10px auto; } .ide-titlebar, .workspace-grid, .split-panel { grid-template-columns: 1fr; } .device-stage { width: 100%; } .titlebar-actions { justify-content: flex-start; flex-wrap: wrap; } .resource-sidebar { border-right: 0; border-bottom: 1px solid var(--border-default); } .status-rail { grid-template-columns: 1fr; } .pipeline { grid-template-columns: 1fr; } .pipeline b { text-align: center; transform: rotate(0deg); } }
 
 """#
 
@@ -423,6 +453,135 @@ for (const button of copyButtons) {
   });
 }
 
+
+// MARK: - Editor: frame mirror, node selection, properties
+
+let editorNodes = [];
+let editorLogicalWidth = 0;
+let selectedNodeID = null;
+
+async function drawFrame() {
+  const response = await fetch('/api/inspector/frame');
+  if (response.status === 204) {
+    $('frameStatus').textContent = 'Waiting for a frame from the running application.';
+    return false;
+  }
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+
+  const buffer = await response.arrayBuffer();
+  const header = new DataView(buffer);
+  // 'CIDR', then version, pixel width, pixel height, logical width, logical
+  // height -- see CiderCore.FrameMirror for the writer.
+  if (buffer.byteLength < 24 || header.getUint32(0, false) !== 0x43494452) {
+    $('frameStatus').textContent = 'Frame mirror is not a CIDR frame.';
+    return false;
+  }
+  const version = header.getUint32(4, true);
+  if (version !== 1) {
+    $('frameStatus').textContent = `Frame mirror version ${version} is newer than this dashboard.`;
+    return false;
+  }
+  const pixelWidth = header.getUint32(8, true);
+  const pixelHeight = header.getUint32(12, true);
+  editorLogicalWidth = header.getUint32(16, true);
+  const expected = 24 + pixelWidth * pixelHeight * 4;
+  if (buffer.byteLength < expected) {
+    $('frameStatus').textContent = 'Frame mirror is incomplete.';
+    return false;
+  }
+
+  const canvas = $('frame');
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+  const pixels = new Uint8ClampedArray(buffer, 24, pixelWidth * pixelHeight * 4);
+  canvas.getContext('2d').putImageData(new ImageData(pixels, pixelWidth, pixelHeight), 0, 0);
+  $('frameStatus').textContent = `${pixelWidth}x${pixelHeight} px · ${editorLogicalWidth} pt wide`;
+  return true;
+}
+
+function drawOverlay() {
+  const canvas = $('frame');
+  const overlay = $('overlay');
+  const scale = editorLogicalWidth > 0 ? canvas.clientWidth / editorLogicalWidth : 0;
+  if (scale <= 0) {
+    overlay.innerHTML = '';
+    return;
+  }
+
+  // Pre-order is painter's order -- a child always follows its parent, and a
+  // later sibling is drawn over an earlier one -- so appending in array order
+  // puts the topmost node last, where a click reaches it first.
+  overlay.innerHTML = editorNodes
+    .filter((node) => node.frame)
+    .map((node) => {
+      const selected = node.id === selectedNodeID ? ' selected' : '';
+      const style = `left:${node.frame.x * scale}px;top:${node.frame.y * scale}px;`
+        + `width:${node.frame.width * scale}px;height:${node.frame.height * scale}px`;
+      return `<button type="button" class="node-box${selected}" style="${style}" `
+        + `data-node="${escapeHTML(node.id)}" aria-label="${escapeHTML(node.kind)} ${escapeHTML(node.id)}"></button>`;
+    })
+    .join('');
+
+  for (const box of overlay.querySelectorAll('.node-box')) {
+    box.onclick = () => selectNode(box.dataset.node);
+  }
+}
+
+function selectNode(nodeID) {
+  selectedNodeID = nodeID;
+  drawOverlay();
+  renderProperties();
+}
+
+function ancestorIDs(nodeID) {
+  const parts = String(nodeID).split('/');
+  const chain = [];
+  for (let index = 1; index < parts.length; index += 1) {
+    chain.push(parts.slice(0, index).join('/'));
+  }
+  return chain.filter((id) => editorNodes.some((node) => node.id === id));
+}
+
+function propertyRow(name, value, note) {
+  const suffix = note ? ` <span class="prop-note">${escapeHTML(note)}</span>` : '';
+  return `<div class="prop-row"><span class="prop-name">${escapeHTML(name)}</span>`
+    + `<span class="prop-value">${escapeHTML(value)}${suffix}</span></div>`;
+}
+
+function renderProperties() {
+  const node = editorNodes.find((candidate) => candidate.id === selectedNodeID);
+  if (!node) {
+    $('selectionPath').textContent = 'nothing selected';
+    $('properties').innerHTML = 'Click a view in the preview to select it.';
+    return;
+  }
+
+  // A container's box is covered by its children, so the breadcrumb is the only
+  // way to reach a VStack by pointer. Buttons, so it works from the keyboard too.
+  const crumbs = ancestorIDs(node.id)
+    .map((id) => `<button type="button" class="icon-button" data-ancestor="${escapeHTML(id)}">${escapeHTML(id)}</button>`)
+    .join(' ');
+  $('selectionPath').innerHTML = crumbs || escapeHTML(node.id);
+  for (const crumb of $('selectionPath').querySelectorAll('[data-ancestor]')) {
+    crumb.onclick = () => selectNode(crumb.dataset.ancestor);
+  }
+
+  let rows = propertyRow('kind', node.kind) + propertyRow('id', node.id);
+  if (node.frame) {
+    rows += propertyRow('frame', `${node.frame.x}, ${node.frame.y}  ${node.frame.width}x${node.frame.height}`, 'points');
+  }
+  // Typed properties land with the richer snapshot; until then the inspector's
+  // own summary is the honest thing to show rather than an empty panel.
+  if (Array.isArray(node.properties) && node.properties.length) {
+    rows += node.properties.map((property) => propertyRow(property.name, property.value, property.editable ? '' : 'read-only')).join('');
+  } else if (node.label) {
+    rows += propertyRow('summary', node.label);
+  }
+  $('properties').innerHTML = rows;
+}
+
 async function refresh() {
   try {
     const status = await json('/api/status');
@@ -436,10 +595,16 @@ async function refresh() {
     if (inspector && inspector.nodes) {
       $('tree').innerHTML = inspector.nodes.map(inspectorNode).join('');
       $('commands').textContent = renderCommands(inspector.renderCommands || []);
+      editorNodes = inspector.nodes;
     } else {
       $('tree').innerHTML = lineRow(1, '<span class="token-comment">No runtime snapshot yet.</span>');
       $('commands').textContent = '';
+      editorNodes = [];
     }
+
+    const drew = await drawFrame();
+    if (drew) drawOverlay();
+    renderProperties();
 
     const requests = await json('/api/network/requests');
     $('requests').innerHTML = requests.length ? requests.map(requestRow).join('') : lineRow(1, '<span class="token-comment">No CiderHTTP requests captured yet.</span>');

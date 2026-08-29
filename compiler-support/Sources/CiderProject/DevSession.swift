@@ -91,6 +91,7 @@ public final class DevSession {
             inspectorEnabled: true,
             sandboxDataRoot: sandboxRoot.path,
             inspectorSnapshotPath: workspace.inspectorSnapshotURL.path,
+            inspectorFramePath: workspace.inspectorFrameURL.path,
             requestCaptureProxyURL: String(dashboard.dashboardURL.dropLast())
         )
         try write(descriptor)

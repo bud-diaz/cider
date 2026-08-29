@@ -5,6 +5,9 @@ import Foundation
 public struct DevWorkspace: Sendable {
     public var root: URL
     public var inspectorSnapshotURL: URL
+
+    /// Where the runtime mirrors the presented frame for the editor.
+    public var inspectorFrameURL: URL
     public var eventsURL: URL
     public var proxyLogURL: URL
     public var dashboardDirectory: URL
@@ -12,6 +15,7 @@ public struct DevWorkspace: Sendable {
     public init(project: Project) {
         root = project.workDirectory.appendingPathComponent("dev", isDirectory: true)
         inspectorSnapshotURL = root.appendingPathComponent("inspector/latest.json")
+        inspectorFrameURL = root.appendingPathComponent("inspector/frame.bin")
         eventsURL = root.appendingPathComponent("events.jsonl")
         proxyLogURL = root.appendingPathComponent("proxy/requests.jsonl")
         dashboardDirectory = root.appendingPathComponent("dashboard", isDirectory: true)

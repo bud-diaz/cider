@@ -43,6 +43,12 @@ public struct LaunchDescriptor: Equatable, Sendable {
     /// Where the runtime writes the latest structured inspector snapshot when inspection is enabled.
     public var inspectorSnapshotPath: String
 
+    /// Where the runtime mirrors the presented frame as raw pixels, for the
+    /// `cider dev` editor. Empty -- the default, and what `cider run` always
+    /// uses -- means no frame is ever written, so an ordinary run pays nothing
+    /// for a feature only the local console consumes.
+    public var inspectorFramePath: String
+
     /// Local dev-mode proxy endpoint for capturing CiderHTTP requests. Empty means direct requests.
     public var requestCaptureProxyURL: String
 
@@ -64,6 +70,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
         inspectorEnabled: Bool = false,
         sandboxDataRoot: String = "",
         inspectorSnapshotPath: String = "",
+        inspectorFramePath: String = "",
         requestCaptureProxyURL: String = ""
     ) {
         self.version = version
@@ -77,6 +84,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
         self.inspectorEnabled = inspectorEnabled
         self.sandboxDataRoot = sandboxDataRoot
         self.inspectorSnapshotPath = inspectorSnapshotPath
+        self.inspectorFramePath = inspectorFramePath
         self.requestCaptureProxyURL = requestCaptureProxyURL
     }
 
@@ -95,6 +103,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
         inspector.enabled = \(inspectorEnabled)
         sandbox.data-root = \(sandboxDataRoot)
         inspector.snapshot-path = \(inspectorSnapshotPath)
+        inspector.frame-path = \(inspectorFramePath)
         request-capture.proxy-url = \(requestCaptureProxyURL)
 
         """
@@ -162,6 +171,7 @@ public struct LaunchDescriptor: Equatable, Sendable {
             inspectorEnabled: fields["inspector.enabled"] == "true",
             sandboxDataRoot: fields["sandbox.data-root"] ?? "",
             inspectorSnapshotPath: fields["inspector.snapshot-path"] ?? "",
+            inspectorFramePath: fields["inspector.frame-path"] ?? "",
             requestCaptureProxyURL: fields["request-capture.proxy-url"] ?? ""
         )
     }

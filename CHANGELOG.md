@@ -22,6 +22,22 @@ across two Ubuntu LTS releases (24.04, 22.04).
 
 ### Added
 
+**Developer console editor**
+
+- `cider dev` gains an editor tab: the running application's presented frame is
+  mirrored into the browser and views are selected by clicking them. Selection
+  uses the inspector snapshot's node frames, so it reaches `Text`, `Image` and
+  `VStack` -- node kinds the runtime deliberately publishes no hit region for.
+- `FrameMirror` wire format: a 24-byte header (`CIDR`, version, pixel size,
+  logical size) followed by straight-alpha RGBA8. No image codec is involved --
+  the browser hands the buffer straight to `ImageData`, which is why raw bytes
+  beat PNG here for the same reason `tests/visual/PPM.swift` gives.
+- `LaunchDescriptor.inspectorFramePath` (`inspector.frame-path`), set only by
+  `cider dev`. Frame writes are throttled to five a second, so an application
+  presenting at the loop's full rate does not turn the mirror into the most
+  expensive thing in the process.
+- `GET /api/inspector/frame` on the dev dashboard, 204 until a frame exists.
+
 **Toolchain**
 
 - `cider doctor` — checks host OS, architecture, Swift version, C compiler,

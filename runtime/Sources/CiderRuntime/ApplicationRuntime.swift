@@ -43,6 +43,12 @@ public final class ApplicationRuntime: InvalidationTarget {
 
     public private(set) var state: ApplicationState = .notRunning
 
+    /// Seconds between frame-mirror writes. See `writeFrameMirrorIfNeeded`.
+    private static let frameMirrorMinimumInterval: TimeInterval = 0.2
+
+    /// When the last frame mirror was written, or nil if none has been.
+    private var lastFrameMirrorTime: TimeInterval?
+
     private var scene: ApplicationScene?
     private var renderTree: RenderTree?
     private var lastLayout: LayoutBox?
@@ -494,6 +500,7 @@ public final class ApplicationRuntime: InvalidationTarget {
         try window.present(canvas)
         frameCount += 1
         writeInspectorSnapshotIfNeeded(node: scene.root, layout: layout, renderTree: tree)
+        writeFrameMirrorIfNeeded(canvas)
         needsRender = false
         log.trace("presented frame \(frameCount)")
     }
@@ -508,6 +515,35 @@ public final class ApplicationRuntime: InvalidationTarget {
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
             log.warning("could not write inspector snapshot: \(error)")
+        }
+    }
+
+    /// Mirrors the presented frame for the `cider dev` editor.
+    ///
+    /// Throttled rather than written every frame. A presented frame is about a
+    /// megabyte, and an application driving a timer can present at the loop's
+    /// full rate; at that point the mirror would cost more disk bandwidth than
+    /// the application costs CPU. Five frames a second is well past what a
+    /// developer reading a property panel can perceive.
+    private func writeFrameMirrorIfNeeded(_ canvas: Canvas) {
+        guard !descriptor.inspectorFramePath.isEmpty else { return }
+
+        let now = Date().timeIntervalSince1970
+        if let last = lastFrameMirrorTime, now - last < Self.frameMirrorMinimumInterval { return }
+        lastFrameMirrorTime = now
+
+        do {
+            let url = URL(fileURLWithPath: descriptor.inspectorFramePath)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            // Atomically, so the console never reads a half-written frame.
+            let bytes = FrameMirror.encode(
+                canvas,
+                logicalWidth: Int(deviceProfile.logicalWidth.rounded()),
+                logicalHeight: Int(deviceProfile.logicalHeight.rounded())
+            )
+            try Data(bytes).write(to: url, options: .atomic)
+        } catch {
+            log.warning("could not write frame mirror: \(error)")
         }
     }
 
