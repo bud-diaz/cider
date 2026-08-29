@@ -12,8 +12,18 @@ public struct Image: CiderView {
 
     private let source: ImageSource
 
-    public init(_ source: ImageSource) {
+    // Where this view came from. See `SourceOrigin`. An image's dimensions are
+    // decoded pixels, so no property here has a source form to record.
+    private var origins: SourceOriginTable
+
+    public init(
+        _ source: ImageSource,
+        file: String = #filePath,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         self.source = source
+        self.origins = SourceOriginTable(file: file, line: line, column: column)
     }
 
     public var body: Never { fatalError("Image has no body") }
@@ -21,5 +31,6 @@ public struct Image: CiderView {
     public func _lower(into context: LoweringContext) {
         let id = context.reserveIdentity()
         context.emit(.image(ImageNode(id: id, source: source)))
+        context.register(origins: origins.nodeOrigins, for: id)
     }
 }

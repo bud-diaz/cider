@@ -32,6 +32,10 @@
 //    LIFE-BG-001       foreground/background lifecycle transitions can be simulated
 //    LIFE-BG-002       CiderApp.didEnterBackground()/didEnterForeground() fire on those transitions
 //    NET-HTTP-001      HTTP requests enforce manifest network permission
+//    EDIT-ORIGIN-001   a view records the source position it was written at
+//    EDIT-ORIGIN-002   two views on one line get distinct recorded columns
+//    EDIT-ORIGIN-003   synthetic wrapper nodes record no origin
+//    EDIT-ORIGIN-004   every view still accepts its ordinary trailing-closure form
 
 import XCTest
 
@@ -166,6 +170,153 @@ final class ConformanceTests: XCTestCase {
         XCTAssertEqual(field.backgroundColor, Theme.textFieldBackgroundColor)
         XCTAssertEqual(field.cornerRadius, Theme.textFieldCornerRadius)
         XCTAssertEqual(field.padding, Theme.textFieldPadding)
+    }
+
+    // MARK: - EDIT-ORIGIN-001
+
+    /// EDIT-ORIGIN-001: a view records the file and line it was written at.
+    ///
+    /// The developer console rewrites Swift to change a property, so something
+    /// has to lead from a node in a running process back to a call in a file.
+    /// This is that link, and it is the only part of the chain that cannot be
+    /// checked by reading the code -- what the compiler reports for a defaulted
+    /// `#line` has to be observed.
+    func testEDIT_ORIGIN_001_aViewRecordsWhereItWasWritten() throws {
+        let scene = Lowering.scene(from: OriginFixtures.singleText)
+        let origins = try XCTUnwrap(scene.origins[scene.root.id])
+
+        XCTAssertEqual(origins.construction.line, OriginFixtures.singleTextLine)
+        XCTAssertTrue(
+            origins.construction.file.hasSuffix("OriginFixtures.swift"),
+            "expected an absolute path from #filePath, got \(origins.construction.file)"
+        )
+        XCTAssertGreaterThan(origins.construction.column, 0)
+
+        // The content is an initializer argument, so it is written wherever the
+        // view is.
+        XCTAssertEqual(origins.properties["text"], origins.construction)
+    }
+
+    /// EDIT-ORIGIN-001: a modifier the developer wrote is recorded; one they
+    /// did not write is absent. That difference is what decides whether an edit
+    /// rewrites an argument or has to insert a call.
+    func testEDIT_ORIGIN_001_onlyWrittenValuesAreRecorded() throws {
+        let styled = Lowering.scene(from: OriginFixtures.chained)
+        let styledOrigins = try XCTUnwrap(styled.origins[styled.root.id])
+        XCTAssertNotNil(styledOrigins.properties["fontSize"])
+        XCTAssertNotNil(styledOrigins.properties["fontWeight"])
+        XCTAssertNil(styledOrigins.properties["color"], "nothing wrote a colour")
+
+        // A chained modifier resolves to the same file as the chain's head, and
+        // the rewriter relies on that: a modifier applied in some other file
+        // would run after any edit made here and silently win.
+        XCTAssertEqual(styledOrigins.properties["fontSize"]?.file, styledOrigins.construction.file)
+        XCTAssertEqual(styledOrigins.construction.line, OriginFixtures.chainedLine)
+
+        // What the compiler reports for a chained call is the one thing this
+        // design could not settle by reading the language reference, so record
+        // it where a CI log will show it.
+        print("EDIT-ORIGIN-001 chained: construction=\(styledOrigins.construction) fontSize=\(String(describing: styledOrigins.properties["fontSize"]))")
+    }
+
+    /// EDIT-ORIGIN-001: an initializer argument the caller omitted is not
+    /// recorded, even though the node ends up carrying a value for it.
+    func testEDIT_ORIGIN_001_defaultedInitializerArgumentsAreNotRecorded() throws {
+        let written = Lowering.scene(from: OriginFixtures.stackWithWrittenSpacing)
+        let writtenOrigins = try XCTUnwrap(written.origins[written.root.id])
+        XCTAssertNotNil(writtenOrigins.properties["spacing"])
+        XCTAssertNil(writtenOrigins.properties["alignment"])
+
+        let defaulted = Lowering.scene(from: OriginFixtures.stackWithDefaultSpacing)
+        let defaultedOrigins = try XCTUnwrap(defaulted.origins[defaulted.root.id])
+        XCTAssertNil(defaultedOrigins.properties["spacing"], "nobody wrote a spacing")
+
+        // ...and the node still carries the Theme value either way.
+        guard case .vstack(let stack) = defaulted.root else {
+            return XCTFail("expected a VStackNode, got \(defaulted.root.kindName)")
+        }
+        XCTAssertEqual(stack.spacing, Theme.stackSpacing)
+    }
+
+    // MARK: - EDIT-ORIGIN-002
+
+    /// EDIT-ORIGIN-002: two views written on one line are told apart by column.
+    ///
+    /// Without this the editor could not address either of them, because the
+    /// only handle it has on a value is where it was written.
+    func testEDIT_ORIGIN_002_twoViewsOnOneLineGetDistinctColumns() throws {
+        let scene = Lowering.scene(from: OriginFixtures.pair)
+        guard case .vstack(let stack) = scene.root else {
+            return XCTFail("expected a VStackNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(stack.children.count, 2)
+
+        let left = try XCTUnwrap(scene.origins[stack.children[0].id])
+        let right = try XCTUnwrap(scene.origins[stack.children[1].id])
+
+        XCTAssertEqual(left.construction.line, OriginFixtures.pairLine)
+        XCTAssertEqual(right.construction.line, OriginFixtures.pairLine)
+        XCTAssertNotEqual(
+            left.construction.column,
+            right.construction.column,
+            "two views on one line must be distinguishable, or neither can be edited"
+        )
+        XCTAssertLessThan(left.construction.column, right.construction.column)
+    }
+
+    // MARK: - EDIT-ORIGIN-003
+
+    /// EDIT-ORIGIN-003: the wrapper nodes containers synthesize record no
+    /// origin. Nobody wrote them, and attributing the parent's position to them
+    /// would aim an edit at an expression that does not hold the value.
+    func testEDIT_ORIGIN_003_syntheticWrapperNodesHaveNoOrigin() throws {
+        let scroll = Lowering.scene(from: OriginFixtures.scrollWithLooseChildren)
+        guard case .scrollView(let viewport) = scroll.root else {
+            return XCTFail("expected a ScrollViewNode, got \(scroll.root.kindName)")
+        }
+        XCTAssertNotNil(scroll.origins[viewport.id], "the ScrollView itself was written")
+        XCTAssertEqual(viewport.content.id.description, "\(viewport.id.path)/wrap")
+        XCTAssertNil(scroll.origins[viewport.content.id], "nobody wrote the wrapper")
+
+        let list = Lowering.scene(from: OriginFixtures.listWithRows)
+        guard case .scrollView(let listViewport) = list.root else {
+            return XCTFail("expected a ScrollViewNode, got \(list.root.kindName)")
+        }
+        XCTAssertNotNil(list.origins[listViewport.id])
+        XCTAssertEqual(listViewport.content.id.description, "\(listViewport.id.path)/rows")
+        XCTAssertNil(list.origins[listViewport.content.id], "nobody wrote the rows container")
+    }
+
+    // MARK: - EDIT-ORIGIN-004
+
+    /// EDIT-ORIGIN-004: every view still accepts its ordinary call form.
+    ///
+    /// Adding defaulted parameters after a closure parameter changes how Swift
+    /// matches a trailing closure. `EveryViewFormApp` exercises every form in
+    /// the API, so a regression here is a compile error rather than a puzzle in
+    /// somebody's application.
+    func testEDIT_ORIGIN_004_everyViewFormStillLowers() throws {
+        let scene = Lowering.scene(from: EveryViewFormApp().body)
+        guard case .vstack(let stack) = scene.root else {
+            return XCTFail("expected a VStackNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(stack.children.count, 8)
+        XCTAssertEqual(
+            stack.children.map(\.kindName),
+            [
+                "TextNode",
+                "ButtonNode",
+                "ImageNode",
+                "TextFieldNode",
+                "ScrollViewNode",
+                "ScrollViewNode",
+                "NavigationStackNode",
+                "ModalPresenterNode",
+            ]
+        )
+        for child in stack.children {
+            XCTAssertNotNil(scene.origins[child.id], "\(child.kindName) recorded no origin")
+        }
     }
 
     // MARK: - STYLE-BRAND-001

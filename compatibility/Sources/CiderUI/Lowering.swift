@@ -22,6 +22,15 @@ public final class LoweringContext {
     /// Handlers for editable nodes, keyed by the node's identity.
     public private(set) var textInputHandlers: [NodeID: TextInputHandler] = [:]
 
+    /// Where each node was written, keyed by the node's identity.
+    ///
+    /// Only nodes a developer actually wrote appear here. The synthetic
+    /// wrappers below (`/wrap`, `/rows`, `/screen`, and the root stack this
+    /// file's `scene` builds) are deliberately absent: they have no call site,
+    /// and attributing the parent's to them would aim an edit at an expression
+    /// that does not contain the value.
+    public private(set) var origins: [NodeID: NodeOrigins] = [:]
+
     /// The container chain from the root down to where nodes are being emitted.
     private var parents: [NodeID] = [.root]
 
@@ -59,6 +68,10 @@ public final class LoweringContext {
 
     public func register(textInputHandler: @escaping TextInputHandler, for id: NodeID) {
         textInputHandlers[id] = textInputHandler
+    }
+
+    public func register(origins nodeOrigins: NodeOrigins, for id: NodeID) {
+        origins[id] = nodeOrigins
     }
 
     /// Nodes emitted at the top level.
@@ -101,6 +114,11 @@ public enum Lowering {
             )
         }
 
-        return ApplicationScene(root: root, actions: context.actions, textInputHandlers: context.textInputHandlers)
+        return ApplicationScene(
+            root: root,
+            actions: context.actions,
+            textInputHandlers: context.textInputHandlers,
+            origins: context.origins
+        )
     }
 }

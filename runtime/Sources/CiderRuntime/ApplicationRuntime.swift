@@ -508,7 +508,13 @@ public final class ApplicationRuntime: InvalidationTarget {
     private func writeInspectorSnapshotIfNeeded(node: UINode, layout: LayoutBox, renderTree: RenderTree) {
         guard descriptor.inspectorEnabled, !descriptor.inspectorSnapshotPath.isEmpty else { return }
         do {
-            let snapshot = Inspector.snapshot(node: node, layout: layout, renderTree: renderTree, frameCount: frameCount)
+            let snapshot = Inspector.snapshot(
+                node: node,
+                layout: layout,
+                renderTree: renderTree,
+                frameCount: frameCount,
+                origins: scene?.origins ?? [:]
+            )
             let text = try Inspector.json(snapshot)
             let url = URL(fileURLWithPath: descriptor.inspectorSnapshotPath)
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

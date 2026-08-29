@@ -212,8 +212,17 @@ function ancestorIDs(nodeID) {
   return chain.filter((id) => editorNodes.some((node) => node.id === id));
 }
 
-function propertyRow(name, value, note) {
-  const suffix = note ? ` <span class="prop-note">${escapeHTML(note)}</span>` : '';
+function originLabel(origin) {
+  if (!origin || !origin.file) return '';
+  const name = String(origin.file).split('/').pop();
+  return `${name}:${origin.line}`;
+}
+
+function propertyRow(name, value, note, origin) {
+  // A written value shows where it was written; an unwritten one shows why it
+  // has no source. Both are more use than a bare number.
+  const trailer = origin ? originLabel(origin) : note;
+  const suffix = trailer ? ` <span class="prop-note">${escapeHTML(trailer)}</span>` : '';
   return `<div class="prop-row"><span class="prop-name">${escapeHTML(name)}</span>`
     + `<span class="prop-value">${escapeHTML(value)}${suffix}</span></div>`;
 }
@@ -240,11 +249,19 @@ function renderProperties() {
   if (node.frame) {
     rows += propertyRow('frame', `${node.frame.x}, ${node.frame.y}  ${node.frame.width}x${node.frame.height}`, 'points');
   }
+  if (node.origin) {
+    rows += propertyRow('written at', originLabel(node.origin), 'source');
+  }
   if (Array.isArray(node.properties) && node.properties.length) {
     // A property with no source form is still shown, with the reason. Hiding
     // what cannot be changed makes the panel harder to trust, not simpler.
     rows += node.properties
-      .map((property) => propertyRow(property.name, property.value, property.editable ? '' : (property.note || 'read-only')))
+      .map((property) => propertyRow(
+        property.name,
+        property.value,
+        property.editable ? 'default' : (property.note || 'read-only'),
+        property.origin
+      ))
       .join('');
   } else if (node.label) {
     // An older runtime, or a node kind that exposes nothing.

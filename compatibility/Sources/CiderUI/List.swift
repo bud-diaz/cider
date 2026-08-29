@@ -20,18 +20,35 @@ public struct List<Content: CiderView>: CiderView {
     private var height: Double
     private var spacing: Double
 
+    // Where this view and its written values came from. See `SourceOrigin`.
+    private var origins: SourceOriginTable
+
     /// `width`/`height` are the viewport's own size, the same reasoning as
     /// `ScrollView`'s.
+    ///
+    /// `spacing` is optional rather than defaulted to `0` so that "the caller
+    /// wrote a spacing" stays distinguishable from "the caller did not", which
+    /// is what decides whether an edit rewrites an argument or inserts one.
     public init(
         width: Double,
         height: Double,
-        spacing: Double = 0,
-        @CiderViewBuilder content: () -> Content
+        spacing: Double? = nil,
+        @CiderViewBuilder content: () -> Content,
+        file: String = #filePath,
+        line: Int = #line,
+        column: Int = #column
     ) {
         self.content = content()
         self.width = width
         self.height = height
-        self.spacing = spacing
+        self.spacing = spacing ?? 0
+        self.origins = SourceOriginTable(
+            file: file,
+            line: line,
+            column: column,
+            initializerProperties: ["viewportWidth", "viewportHeight"]
+        )
+        self.origins.recordIfWritten("spacing", spacing != nil)
     }
 
     public var body: Never { fatalError("List has no body") }
@@ -56,5 +73,8 @@ public struct List<Content: CiderView>: CiderView {
                 ScrollViewNode(id: id, viewportSize: Size(width: width, height: height), content: rowsNode)
             )
         )
+        // The synthetic "/rows" stack carries the spacing but has no call site,
+        // so it gets no origin. Only the list itself is addressable.
+        context.register(origins: origins.nodeOrigins, for: id)
     }
 }

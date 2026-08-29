@@ -58,13 +58,21 @@ public struct InspectorPropertySnapshot: Codable, Equatable, Sendable {
     /// cannot change is harder to trust than one that says why.
     public var note: String?
 
+    /// Where this value was written, when it was written at all.
+    ///
+    /// Nil means nobody wrote it: it came from `Theme` or from an
+    /// initializer's default. That is the difference between an edit that
+    /// rewrites an argument and one that has to insert a call.
+    public var origin: SourceOrigin?
+
     public init(
         name: String,
         type: String,
         value: String,
         options: [String]? = nil,
         editable: Bool,
-        note: String? = nil
+        note: String? = nil,
+        origin: SourceOrigin? = nil
     ) {
         self.name = name
         self.type = type
@@ -72,6 +80,7 @@ public struct InspectorPropertySnapshot: Codable, Equatable, Sendable {
         self.options = options
         self.editable = editable
         self.note = note
+        self.origin = origin
     }
 }
 
@@ -87,13 +96,22 @@ public struct InspectorNodeSnapshot: Codable, Equatable, Sendable {
     /// producer".
     public var properties: [InspectorPropertySnapshot]?
 
+    /// Where the view that produced this node was constructed.
+    ///
+    /// Nil for the synthetic wrappers `ScrollView`, `List`, `NavigationView`
+    /// and `Modal` put around their content, and for the root stack lowering
+    /// builds for a multi-node body. Nobody wrote those, so there is nothing to
+    /// point an edit at.
+    public var origin: SourceOrigin?
+
     public init(
         id: String,
         kind: String,
         label: String,
         frame: InspectorRectSnapshot?,
         depth: Int,
-        properties: [InspectorPropertySnapshot]? = nil
+        properties: [InspectorPropertySnapshot]? = nil,
+        origin: SourceOrigin? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -101,6 +119,7 @@ public struct InspectorNodeSnapshot: Codable, Equatable, Sendable {
         self.frame = frame
         self.depth = depth
         self.properties = properties
+        self.origin = origin
     }
 }
 
@@ -160,10 +179,11 @@ public enum Inspector {
         layout: LayoutBox?,
         renderTree: RenderTree?,
         frameCount: Int,
+        origins: [NodeID: NodeOrigins] = [:],
         generatedAtMilliseconds: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
     ) -> InspectorSnapshot {
         var nodes: [InspectorNodeSnapshot] = []
-        collect(node: node, layout: layout, depth: 0, into: &nodes)
+        collect(node: node, layout: layout, depth: 0, origins: origins, into: &nodes)
         let commands = renderTree?.commands.enumerated().map { index, command in
             renderCommandSnapshot(index: index, command: command)
         } ?? []
@@ -258,7 +278,14 @@ public enum Inspector {
     }
 
 
-    private static func collect(node: UINode, layout: LayoutBox?, depth: Int, into nodes: inout [InspectorNodeSnapshot]) {
+    private static func collect(
+        node: UINode,
+        layout: LayoutBox?,
+        depth: Int,
+        origins: [NodeID: NodeOrigins],
+        into nodes: inout [InspectorNodeSnapshot]
+    ) {
+        let nodeOrigins = origins[node.id]
         nodes.append(
             InspectorNodeSnapshot(
                 id: node.id.description,
@@ -266,13 +293,18 @@ public enum Inspector {
                 label: label(for: node),
                 frame: layout.map { InspectorRectSnapshot($0.frame) },
                 depth: depth,
-                properties: properties(for: node)
+                properties: properties(for: node).map { property in
+                    var attributed = property
+                    attributed.origin = nodeOrigins?.properties[property.name]
+                    return attributed
+                },
+                origin: nodeOrigins?.construction
             )
         )
         let childLayouts = layout?.children ?? []
         for (index, child) in node.children.enumerated() {
             let childLayout = index < childLayouts.count ? childLayouts[index] : nil
-            collect(node: child, layout: childLayout, depth: depth + 1, into: &nodes)
+            collect(node: child, layout: childLayout, depth: depth + 1, origins: origins, into: &nodes)
         }
     }
 

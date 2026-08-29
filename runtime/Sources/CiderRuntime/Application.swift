@@ -27,14 +27,25 @@ public struct ApplicationScene {
     public var actions: [NodeID: ActionHandler]
     public var textInputHandlers: [NodeID: TextInputHandler]
 
+    /// Where each node, and each value on it, was written.
+    ///
+    /// Empty for a scene built by anything that does not record origins, and
+    /// missing for nodes nobody wrote -- the synthetic wrappers a `ScrollView`,
+    /// `List`, `NavigationView` or `Modal` emits around their content have no
+    /// call site of their own, and reporting the parent's would point an edit
+    /// at the wrong expression.
+    public var origins: [NodeID: NodeOrigins]
+
     public init(
         root: UINode,
         actions: [NodeID: ActionHandler] = [:],
-        textInputHandlers: [NodeID: TextInputHandler] = [:]
+        textInputHandlers: [NodeID: TextInputHandler] = [:],
+        origins: [NodeID: NodeOrigins] = [:]
     ) {
         self.root = root
         self.actions = actions
         self.textInputHandlers = textInputHandlers
+        self.origins = origins
     }
 }
 
