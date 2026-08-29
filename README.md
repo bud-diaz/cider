@@ -20,7 +20,9 @@ not replace any of those and does not try to.
 > clipboard and lifecycle simulation. Stage 4 developer-experience work includes
 > the text commands plus `cider dev`, a loopback-only graphical developer console
 > with structured runtime inspector snapshots, file-watching rebuild/relaunch,
-> request capture for `CiderHTTP`, and a sandbox browser. Stage 5 alpha-readiness
+> request capture for `CiderHTTP`, a sandbox browser, and an editor tab that
+> mirrors the running application's frame in the browser and selects views by
+> clicking them. Stage 5 alpha-readiness
 > work has started with contract/policy/docs inventory via `cider alpha-readiness`;
 > public alpha is not complete yet.
 
@@ -73,7 +75,8 @@ Concretely:
 - **`cider alpha-readiness`** — reports Stage 5 public-alpha gate status against
   the current checkout.
 - **`cider dev`** — starts the local Stage 4 developer console on
-  `127.0.0.1`: graphical inspector, file-watching rebuild/relaunch,
+  `127.0.0.1`: an editor tab mirroring the running application's frame with
+  click-to-select views, graphical inspector, file-watching rebuild/relaunch,
   `CiderHTTP` request capture, sandbox browser and event timeline.
 - **`cider build`** — locates the project, validates its manifest, compiles
   through SwiftPM, and reports the runnable artifact.
@@ -81,7 +84,9 @@ Concretely:
   virtual-device window, runs the application, and shuts down cleanly.
 - **A declarative Swift API** — `CiderApp`, `CiderView`, `Text`, `Button`,
   `VStack`, `Image`, `ScrollView`, `TextField`, `List`, `NavigationView`,
-  `Modal`, `@CiderState`.
+  `Modal`, `@CiderState`, and per-control style modifiers: `.font`,
+  `.foregroundColor`, `.disabled`, and on `Button` and `TextField` also
+  `.background`, `.cornerRadius` and `.padding`.
 - **A normalized UI tree** with stable identity, a two-pass layout engine,
   clipping, and a portable software rasterizer with antialiased rounded
   rectangles.
@@ -249,7 +254,7 @@ Decisions and their alternatives are recorded in
 | `ui/` | Normalized UI tree, layout engine, render tree, rasterizer. |
 | `host/` | Abstract host interfaces, backend selection, and per-platform backends. |
 | `device-profiles/` | Deterministic virtual-device descriptions. |
-| `inspector/` | Textual dumps of runtime state. |
+| `inspector/` | Textual dumps and structured snapshots of runtime state. |
 | `examples/` | Reference applications. |
 | `tests/` | `unit/`, `conformance/`, `integration/`, `visual/`. |
 | `docs/` | Charter, requirements, architecture, compatibility spec, roadmap, testing, legal boundaries, ADRs. |
@@ -307,8 +312,10 @@ This is a Stage 4 MVP. The list is still long and honest:
   sheets (a presented `Modal` is always full-screen), and no full XIM/IME
   composed text on the real X11 backend. Basic keymap text now flows through
   XLookupString-backed `HostEvent.textInput`; Backspace remains raw-key handling.
-- **Layout**: no constraints, no text wrapping, no frame or padding
-  modifiers. The root either centres one node in the safe area (most node
+- **Layout**: no constraints, no text wrapping, and no general `.frame` or
+  `.padding` on arbitrary views -- padding is settable on `Button` and
+  `TextField` only, through their own modifiers. The root either centres one
+  node in the safe area (most node
   kinds) or fills it (`NavigationView`, `Modal`) — see
   `LayoutEngine.layoutCentered`'s doc comment.
 - **Text**: one line, left to right, with kerning. No bidirectional reordering
@@ -330,8 +337,10 @@ This is a Stage 4 MVP. The list is still long and honest:
 - **Compatibility tooling / DX**: a first compatibility registry powers
   `cider scan`, `cider compatibility-docs`, `cider inspect`, `cider network`,
   `cider storage`, `cider init`, and `cider dev-loop`; `cider dev` adds the
-  graphical local console, file-watching rebuild/relaunch, request capture and
-  rich sandbox browser. The scanner is token-based, not a Swift parser, so it is
+  graphical local console, file-watching rebuild/relaunch, request capture, a
+  rich sandbox browser, and an editor tab that mirrors the presented frame and
+  selects views by clicking them. The frame mirror is throttled to five frames
+  a second and is written only under `cider dev`, never under `cider run`. The scanner is token-based, not a Swift parser, so it is
   useful early warning machinery rather than a complete source-compatibility
   analyzer.
 

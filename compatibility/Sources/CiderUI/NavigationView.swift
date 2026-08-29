@@ -14,15 +14,26 @@ public struct NavigationView<Root: CiderView>: CiderView {
     private let path: CiderState<[any CiderView]>
     private let root: Root
 
+    // Where this view came from. See `SourceOrigin`. Which screen is showing
+    // is bound state, so nothing on this node has a source form.
+    private var origins: SourceOriginTable
+
     /// `path` holds the screens pushed on top of `root`, in push order --
     /// empty means `root` is showing. It lives on the app, the same reason
     /// `TextField`'s bound text does: `CiderAppAdapter.attachState` only
     /// wires invalidation for an app's own `@CiderState` properties, not for
     /// state nested inside a view, so the stack has to be owned there and
     /// handed down as a binding.
-    public init(_ path: CiderState<[any CiderView]>, @CiderViewBuilder root: () -> Root) {
+    public init(
+        _ path: CiderState<[any CiderView]>,
+        @CiderViewBuilder root: () -> Root,
+        file: String = #filePath,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         self.path = path
         self.root = root()
+        self.origins = SourceOriginTable(file: file, line: line, column: column)
     }
 
     public var body: Never { fatalError("NavigationView has no body") }
@@ -54,5 +65,8 @@ public struct NavigationView<Root: CiderView>: CiderView {
         }
 
         context.emit(.navigationStack(NavigationStackNode(id: id, content: content)))
+        // The synthetic "/screen" wrapper above has no call site, so only the
+        // navigation view itself gets an origin.
+        context.register(origins: origins.nodeOrigins, for: id)
     }
 }

@@ -18,6 +18,10 @@ public struct Modal<Base: CiderView, Presented: CiderView>: CiderView {
     private let base: Base
     private let presented: Presented
 
+    // Where this view came from. See `SourceOrigin`. Whether it is presenting
+    // is bound state, so nothing on this node has a source form.
+    private var origins: SourceOriginTable
+
     /// `isPresented` is a binding, the same convention `NavigationView`'s
     /// path and `TextField`'s text use: presentation state lives on the
     /// app (or wherever the binding's owner is) and is handed down, since
@@ -29,11 +33,15 @@ public struct Modal<Base: CiderView, Presented: CiderView>: CiderView {
     public init(
         _ isPresented: CiderState<Bool>,
         @CiderViewBuilder content: () -> Base,
-        @CiderViewBuilder presenting: () -> Presented
+        @CiderViewBuilder presenting: () -> Presented,
+        file: String = #filePath,
+        line: Int = #line,
+        column: Int = #column
     ) {
         self.isPresented = isPresented
         self.base = content()
         self.presented = presenting()
+        self.origins = SourceOriginTable(file: file, line: line, column: column)
     }
 
     public var body: Never { fatalError("Modal has no body") }
@@ -69,6 +77,9 @@ public struct Modal<Base: CiderView, Presented: CiderView>: CiderView {
                 )
             )
         )
+        // The two wrapper nodes `wrap` may build have no call site, so only the
+        // modal itself gets an origin.
+        context.register(origins: origins.nodeOrigins, for: id)
     }
 
     /// Wraps a multi-node body the same way `Lowering.scene` wraps the

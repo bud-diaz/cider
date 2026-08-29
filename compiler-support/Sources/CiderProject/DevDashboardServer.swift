@@ -84,6 +84,18 @@ public final class DevDashboardServer: @unchecked Sendable {
             case ("GET", "/api/inspector/latest"):
                 guard FileManager.default.fileExists(atPath: workspace.inspectorSnapshotURL.path) else { return DevDashboardResponse(status: 204) }
                 return DevDashboardResponse(contentType: "application/json", body: try Data(contentsOf: workspace.inspectorSnapshotURL))
+            case ("GET", "/api/inspector/frame"):
+                // Raw RGBA behind a 16-byte header -- see CiderCore.FrameMirror.
+                // Served as bytes because the browser hands it straight to
+                // ImageData; encoding it as an image would mean adding a codec
+                // Cider deliberately does not have.
+                guard FileManager.default.fileExists(atPath: workspace.inspectorFrameURL.path) else {
+                    return DevDashboardResponse(status: 204)
+                }
+                return DevDashboardResponse(
+                    contentType: "application/octet-stream",
+                    body: try Data(contentsOf: workspace.inspectorFrameURL)
+                )
             case ("GET", "/api/events"):
                 return .json(events.recent())
             case ("GET", "/api/network/requests"):

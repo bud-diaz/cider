@@ -23,14 +23,32 @@
     <div class="workspace-grid">
       <aside class="resource-sidebar" aria-label="Dashboard sections">
         <div class="sidebar-label">Resources</div>
-        <button class="resource-row active" data-tab="inspector" aria-selected="true" type="button"><span class="row-index">01</span><span><strong>Inspector</strong><small>view tree + render commands</small></span></button>
-        <button class="resource-row" data-tab="network" aria-selected="false" type="button"><span class="row-index">02</span><span><strong>Network</strong><small>CiderHTTP request capture</small></span></button>
-        <button class="resource-row" data-tab="sandbox" aria-selected="false" type="button"><span class="row-index">03</span><span><strong>Sandbox</strong><small>files + JSON preview</small></span></button>
-        <button class="resource-row" data-tab="events" aria-selected="false" type="button"><span class="row-index">04</span><span><strong>Events</strong><small>runtime event stream</small></span></button>
+        <button class="resource-row active" data-tab="editor" aria-selected="true" type="button"><span class="row-index">01</span><span><strong>Editor</strong><small>frame preview + properties</small></span></button>
+        <button class="resource-row" data-tab="inspector" aria-selected="false" type="button"><span class="row-index">02</span><span><strong>Inspector</strong><small>view tree + render commands</small></span></button>
+        <button class="resource-row" data-tab="network" aria-selected="false" type="button"><span class="row-index">03</span><span><strong>Network</strong><small>CiderHTTP request capture</small></span></button>
+        <button class="resource-row" data-tab="sandbox" aria-selected="false" type="button"><span class="row-index">04</span><span><strong>Sandbox</strong><small>files + JSON preview</small></span></button>
+        <button class="resource-row" data-tab="events" aria-selected="false" type="button"><span class="row-index">05</span><span><strong>Events</strong><small>runtime event stream</small></span></button>
       </aside>
 
       <main class="tab-stack">
-        <section id="inspector" class="tab-panel active" aria-labelledby="inspector-title">
+        <section id="editor" class="tab-panel active" aria-labelledby="editor-title">
+          <div class="split-panel">
+            <div class="editor-window focused-panel">
+              <div class="editor-titlebar"><div class="window-controls small" aria-hidden="true"><span></span><span></span><span></span></div><span id="editor-title" class="file-chip">device.frame</span><span class="editor-action">live</span></div>
+              <div id="stage" class="device-stage">
+                <canvas id="frame" class="device-frame" width="1" height="1" aria-label="Rendered application frame"></canvas>
+                <div id="overlay" class="node-overlay"></div>
+              </div>
+              <p id="frameStatus" class="stage-status">Waiting for a frame from the running application.</p>
+            </div>
+            <div class="proof-panel">
+              <div class="proof-header"><span id="properties-title">PROPERTIES</span><span id="selectionPath" class="stream-badge">nothing selected</span></div>
+              <div id="properties" class="proof-body" aria-labelledby="properties-title">Click a view in the preview to select it.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="inspector" class="tab-panel" aria-labelledby="inspector-title" hidden>
           <div class="editor-window focused-panel">
             <div class="editor-titlebar"><div class="window-controls small" aria-hidden="true"><span></span><span></span><span></span></div><span id="inspector-title" class="file-chip">Inspector.swiftui.tree</span><span class="editor-action">live</span></div>
             <div class="pipeline" aria-label="Swift app through Cider runtime into host"><span>Swift app</span><b>↓</b><span>Cider runtime</span><b>↓</b><span>Host</span></div>

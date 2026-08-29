@@ -22,6 +22,77 @@ across two Ubuntu LTS releases (24.04, 22.04).
 
 ### Added
 
+**Developer console editor**
+
+- `cider dev` gains an editor tab: the running application's presented frame is
+  mirrored into the browser and views are selected by clicking them. Selection
+  uses the inspector snapshot's node frames, so it reaches `Text`, `Image` and
+  `VStack` -- node kinds the runtime deliberately publishes no hit region for.
+- `FrameMirror` wire format: a 24-byte header (`CIDR`, version, pixel size,
+  logical size) followed by straight-alpha RGBA8. No image codec is involved --
+  the browser hands the buffer straight to `ImageData`, which is why raw bytes
+  beat PNG here for the same reason `tests/visual/PPM.swift` gives.
+- `LaunchDescriptor.inspectorFramePath` (`inspector.frame-path`), set only by
+  `cider dev`. Frame writes are throttled to five a second, so an application
+  presenting at the loop's full rate does not turn the mirror into the most
+  expensive thing in the process.
+- `GET /api/inspector/frame` on the dev dashboard, 204 until a frame exists.
+
+**UI style modifiers**
+
+- `Button.foregroundColor(_:)`, `Button.background(_:pressed:)`,
+  `Button.cornerRadius(_:)`, `Button.padding(horizontal:vertical:)`, and the
+  matching `TextField.foregroundColor(_:)`, `TextField.background(_:)`,
+  `TextField.cornerRadius(_:)`, `TextField.padding(horizontal:vertical:)`.
+  These properties existed on `ButtonNode` and `TextFieldNode` but were
+  hard-wired from `Theme`, so no application could set them and the editor
+  could only ever show them read-only. Unset properties still resolve to
+  `Theme` at lowering time, so every existing default is unchanged.
+- `Button.background` requires the pressed colour as well as the resting one.
+  Deriving one from the other means choosing a colour space and a factor, and
+  a factor that reads correctly on a mid-tone background reads as a broken
+  button on a dark or fully saturated one.
+- Conformance IDs `UI-BUTTON-002` and `UI-TEXTFIELD-002`.
+
+**Inspector snapshot**
+
+- `InspectorNodeSnapshot.properties`: each node takes itself apart into named,
+  typed values instead of collapsing into one `label` string, so the editor can
+  address a property rather than read a summary. Optional, so a snapshot from
+  an older runtime still decodes.
+- Properties an application could not have written are reported rather than
+  hidden, carrying the reason: a `TextField`'s text is `bound to app state`, an
+  `Image`'s dimensions are `image pixels`, a modal's overlay is a
+  `theme default`.
+- `CiderProject` now depends on `CiderInspector`, so the console can decode the
+  snapshot it serves instead of duck-typing it in JavaScript. This keeps the
+  rule that the CLI links neither the runtime nor a backend: `CiderInspector`
+  depends only on `CiderCore` and `CiderUITree`.
+
+**Source origins**
+
+- `SourceOrigin` and `NodeOrigins` in `CiderCore`, and
+  `ApplicationScene.origins`: every view records the file, line and column it
+  was written at, and which of its values the developer actually wrote. Origins
+  travel beside the tree, like actions and text-input handlers, so `UINode`
+  stays pure comparable data.
+- Captured through defaulted `#filePath`/`#line`/`#column` parameters placed
+  last in every view initializer and modifier, so no call site mentions them and
+  trailing-closure matching is unaffected.
+- `VStack.spacing`/`alignment` and `List.spacing` became optional parameters
+  defaulting to `nil` rather than to their previous constants. Behaviour is
+  identical when omitted; what changes is that "the caller wrote a value" is now
+  distinguishable from "the caller did not", which is what decides whether an
+  edit rewrites an argument or inserts one.
+- Synthetic wrapper nodes -- `ScrollView`'s `/wrap`, `List`'s `/rows`,
+  `NavigationView`'s `/screen`, `Modal`'s two slots, and the root stack lowering
+  builds for a multi-node body -- deliberately record no origin. Nobody wrote
+  them.
+- The inspector snapshot carries a node's origin and a per-property origin, and
+  the editor panel shows `File.swift:42` beside a written value and `default`
+  beside one nobody wrote.
+- Conformance IDs `EDIT-ORIGIN-001` through `EDIT-ORIGIN-004`.
+
 **Toolchain**
 
 - `cider doctor` — checks host OS, architecture, Swift version, C compiler,

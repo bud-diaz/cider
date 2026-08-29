@@ -46,6 +46,7 @@ public struct Manifest: Equatable, Sendable {
         inspectorEnabled: Bool = false,
         sandboxDataRoot: String = "",
         inspectorSnapshotPath: String = "",
+        inspectorFramePath: String = "",
         requestCaptureProxyURL: String = ""
     ) -> LaunchDescriptor {
         LaunchDescriptor(
@@ -59,6 +60,7 @@ public struct Manifest: Equatable, Sendable {
             inspectorEnabled: inspectorEnabled,
             sandboxDataRoot: sandboxDataRoot,
             inspectorSnapshotPath: inspectorSnapshotPath,
+            inspectorFramePath: inspectorFramePath,
             requestCaptureProxyURL: requestCaptureProxyURL
         )
     }

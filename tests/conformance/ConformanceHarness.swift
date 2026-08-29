@@ -139,6 +139,30 @@ struct TextFieldTestApp: CiderApp {
     }
 }
 
+/// A button carrying every style modifier, for UI-BUTTON-002.
+struct StyledButtonApp: CiderApp {
+    var body: some CiderView {
+        Button("Go") {}
+            .foregroundColor(Color(hex: 0x101010))
+            .background(Color(hex: 0x2040C0), pressed: Color(hex: 0x3050D0))
+            .cornerRadius(2)
+            .padding(horizontal: 30, vertical: 14)
+    }
+}
+
+/// A text field carrying every style modifier, for UI-TEXTFIELD-002.
+struct StyledTextFieldApp: CiderApp {
+    @CiderState var text = "edit me"
+
+    var body: some CiderView {
+        TextField($text, width: 120)
+            .foregroundColor(Color(hex: 0xEFEFEF))
+            .background(Color(hex: 0x202020))
+            .cornerRadius(3)
+            .padding(horizontal: 18, vertical: 6)
+    }
+}
+
 /// Ten button rows plus a trailing status row, in a viewport short enough
 /// that most rows start out scrolled out of view -- for the list
 /// conformance test.

@@ -16,13 +16,27 @@ final class LaunchDescriptorTests: XCTestCase {
             permissions: AppPermissions(network: false, localStorage: true),
             logLevel: .debug,
             inspectorEnabled: true,
-            sandboxDataRoot: "/home/dev/.local/share/cider/apps/dev.cider.hello"
+            sandboxDataRoot: "/home/dev/.local/share/cider/apps/dev.cider.hello",
+            inspectorFramePath: "/home/dev/project/.cider/dev/inspector/frame.bin"
         )
     }
 
     func testRoundTrip() throws {
         let decoded = try LaunchDescriptor.decode(sample.encoded())
         XCTAssertEqual(decoded, sample)
+    }
+
+    func testInspectorFramePathDefaultsToEmptyWhenAbsent() throws {
+        let text = """
+            descriptor-version = 1
+            app.id = dev.cider.hello
+            app.name = Hello Cider
+            app.entry = HelloCiderApp
+            runtime.minimum-compatibility = 0.1
+            device.name = phone-standard
+            """
+        let decoded = try LaunchDescriptor.decode(text)
+        XCTAssertEqual(decoded.inspectorFramePath, "", "only cider dev asks for a frame mirror")
     }
 
     func testSandboxDataRootDefaultsToEmptyWhenAbsent() throws {

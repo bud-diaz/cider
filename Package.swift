@@ -177,9 +177,14 @@ let package = Package(
         // orchestration, launch descriptors. Deliberately independent of the
         // runtime so the CLI can diagnose a host on which the runtime cannot
         // even be built.
+        //
+        // CiderInspector is a dependency so the console can decode the
+        // snapshot it serves rather than trusting the browser's reading of it.
+        // This does not breach "the CLI links neither the runtime nor a
+        // backend": CiderInspector depends only on CiderCore and CiderUITree.
         .target(
             name: "CiderProject",
-            dependencies: ["CiderCore", "CiderDeviceProfiles"],
+            dependencies: ["CiderCore", "CiderDeviceProfiles", "CiderInspector"],
             path: "compiler-support/Sources/CiderProject"
         ),
 

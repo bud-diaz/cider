@@ -121,6 +121,157 @@ for (const button of copyButtons) {
   });
 }
 
+
+// MARK: - Editor: frame mirror, node selection, properties
+
+let editorNodes = [];
+let editorLogicalWidth = 0;
+let selectedNodeID = null;
+
+async function drawFrame() {
+  const response = await fetch('/api/inspector/frame');
+  if (response.status === 204) {
+    $('frameStatus').textContent = 'Waiting for a frame from the running application.';
+    return false;
+  }
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+
+  const buffer = await response.arrayBuffer();
+  const header = new DataView(buffer);
+  // 'CIDR', then version, pixel width, pixel height, logical width, logical
+  // height -- see CiderCore.FrameMirror for the writer.
+  if (buffer.byteLength < 24 || header.getUint32(0, false) !== 0x43494452) {
+    $('frameStatus').textContent = 'Frame mirror is not a CIDR frame.';
+    return false;
+  }
+  const version = header.getUint32(4, true);
+  if (version !== 1) {
+    $('frameStatus').textContent = `Frame mirror version ${version} is newer than this dashboard.`;
+    return false;
+  }
+  const pixelWidth = header.getUint32(8, true);
+  const pixelHeight = header.getUint32(12, true);
+  editorLogicalWidth = header.getUint32(16, true);
+  const expected = 24 + pixelWidth * pixelHeight * 4;
+  if (buffer.byteLength < expected) {
+    $('frameStatus').textContent = 'Frame mirror is incomplete.';
+    return false;
+  }
+
+  const canvas = $('frame');
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+  const pixels = new Uint8ClampedArray(buffer, 24, pixelWidth * pixelHeight * 4);
+  canvas.getContext('2d').putImageData(new ImageData(pixels, pixelWidth, pixelHeight), 0, 0);
+  $('frameStatus').textContent = `${pixelWidth}x${pixelHeight} px · ${editorLogicalWidth} pt wide`;
+  return true;
+}
+
+function drawOverlay() {
+  const canvas = $('frame');
+  const overlay = $('overlay');
+  const scale = editorLogicalWidth > 0 ? canvas.clientWidth / editorLogicalWidth : 0;
+  if (scale <= 0) {
+    overlay.innerHTML = '';
+    return;
+  }
+
+  // Pre-order is painter's order -- a child always follows its parent, and a
+  // later sibling is drawn over an earlier one -- so appending in array order
+  // puts the topmost node last, where a click reaches it first.
+  overlay.innerHTML = editorNodes
+    .filter((node) => node.frame)
+    .map((node) => {
+      const selected = node.id === selectedNodeID ? ' selected' : '';
+      const style = `left:${node.frame.x * scale}px;top:${node.frame.y * scale}px;`
+        + `width:${node.frame.width * scale}px;height:${node.frame.height * scale}px`;
+      return `<button type="button" class="node-box${selected}" style="${style}" `
+        + `data-node="${escapeHTML(node.id)}" aria-label="${escapeHTML(node.kind)} ${escapeHTML(node.id)}"></button>`;
+    })
+    .join('');
+
+  for (const box of overlay.querySelectorAll('.node-box')) {
+    box.onclick = () => selectNode(box.dataset.node);
+  }
+}
+
+function selectNode(nodeID) {
+  selectedNodeID = nodeID;
+  drawOverlay();
+  renderProperties();
+}
+
+function ancestorIDs(nodeID) {
+  const parts = String(nodeID).split('/');
+  const chain = [];
+  for (let index = 1; index < parts.length; index += 1) {
+    chain.push(parts.slice(0, index).join('/'));
+  }
+  return chain.filter((id) => editorNodes.some((node) => node.id === id));
+}
+
+function originLabel(origin) {
+  if (!origin || !origin.file) return '';
+  const name = String(origin.file).split('/').pop();
+  return `${name}:${origin.line}`;
+}
+
+function propertyRow(name, value, note, origin) {
+  // A written value shows where it was written; an unwritten one shows why it
+  // has no source. Both are more use than a bare number.
+  const trailer = origin ? originLabel(origin) : note;
+  const suffix = trailer ? ` <span class="prop-note">${escapeHTML(trailer)}</span>` : '';
+  return `<div class="prop-row"><span class="prop-name">${escapeHTML(name)}</span>`
+    + `<span class="prop-value">${escapeHTML(value)}${suffix}</span></div>`;
+}
+
+function renderProperties() {
+  const node = editorNodes.find((candidate) => candidate.id === selectedNodeID);
+  if (!node) {
+    $('selectionPath').textContent = 'nothing selected';
+    $('properties').innerHTML = 'Click a view in the preview to select it.';
+    return;
+  }
+
+  // A container's box is covered by its children, so the breadcrumb is the only
+  // way to reach a VStack by pointer. Buttons, so it works from the keyboard too.
+  const crumbs = ancestorIDs(node.id)
+    .map((id) => `<button type="button" class="icon-button" data-ancestor="${escapeHTML(id)}">${escapeHTML(id)}</button>`)
+    .join(' ');
+  $('selectionPath').innerHTML = crumbs || escapeHTML(node.id);
+  for (const crumb of $('selectionPath').querySelectorAll('[data-ancestor]')) {
+    crumb.onclick = () => selectNode(crumb.dataset.ancestor);
+  }
+
+  let rows = propertyRow('kind', node.kind) + propertyRow('id', node.id);
+  if (node.frame) {
+    rows += propertyRow('frame', `${node.frame.x}, ${node.frame.y}  ${node.frame.width}x${node.frame.height}`, 'points');
+  }
+  if (node.origin) {
+    rows += propertyRow('written at', originLabel(node.origin), 'source');
+  }
+  if (Array.isArray(node.properties) && node.properties.length) {
+    // A property with no source form is still shown, with the reason. Hiding
+    // what cannot be changed makes the panel harder to trust, not simpler.
+    rows += node.properties
+      .map((property) => propertyRow(
+        property.name,
+        property.value,
+        property.editable ? 'default' : (property.note || 'read-only'),
+        property.origin
+      ))
+      .join('');
+  } else if (node.label) {
+    // An older runtime, or a node kind that exposes nothing.
+    rows += propertyRow('summary', node.label);
+  } else {
+    rows += propertyRow('properties', 'none', 'nothing this view wrote');
+  }
+  $('properties').innerHTML = rows;
+}
+
 async function refresh() {
   try {
     const status = await json('/api/status');
@@ -134,10 +285,16 @@ async function refresh() {
     if (inspector && inspector.nodes) {
       $('tree').innerHTML = inspector.nodes.map(inspectorNode).join('');
       $('commands').textContent = renderCommands(inspector.renderCommands || []);
+      editorNodes = inspector.nodes;
     } else {
       $('tree').innerHTML = lineRow(1, '<span class="token-comment">No runtime snapshot yet.</span>');
       $('commands').textContent = '';
+      editorNodes = [];
     }
+
+    const drew = await drawFrame();
+    if (drew) drawOverlay();
+    renderProperties();
 
     const requests = await json('/api/network/requests');
     $('requests').innerHTML = requests.length ? requests.map(requestRow).join('') : lineRow(1, '<span class="token-comment">No CiderHTTP requests captured yet.</span>');

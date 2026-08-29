@@ -10,13 +10,29 @@ public struct ScrollView<Content: CiderView>: CiderView {
     private var width: Double
     private var height: Double
 
+    // Where this view and its written values came from. See `SourceOrigin`.
+    private var origins: SourceOriginTable
+
     /// `width`/`height` are the viewport's own size -- see `ScrollViewNode`'s
     /// doc comment for why this is explicit rather than inherited from a
     /// parent's proposed size.
-    public init(width: Double, height: Double, @CiderViewBuilder content: () -> Content) {
+    public init(
+        width: Double,
+        height: Double,
+        @CiderViewBuilder content: () -> Content,
+        file: String = #filePath,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         self.content = content()
         self.width = width
         self.height = height
+        self.origins = SourceOriginTable(
+            file: file,
+            line: line,
+            column: column,
+            initializerProperties: ["viewportWidth", "viewportHeight"]
+        )
     }
 
     public var body: Never { fatalError("ScrollView has no body") }
@@ -53,5 +69,8 @@ public struct ScrollView<Content: CiderView>: CiderView {
                 ScrollViewNode(id: id, viewportSize: Size(width: width, height: height), content: contentNode)
             )
         )
+        // Only the viewport itself. The "/wrap" node above has no call site of
+        // its own, so it deliberately gets no origin.
+        context.register(origins: origins.nodeOrigins, for: id)
     }
 }
