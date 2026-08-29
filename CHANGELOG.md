@@ -54,6 +54,21 @@ across two Ubuntu LTS releases (24.04, 22.04).
   button on a dark or fully saturated one.
 - Conformance IDs `UI-BUTTON-002` and `UI-TEXTFIELD-002`.
 
+**Inspector snapshot**
+
+- `InspectorNodeSnapshot.properties`: each node takes itself apart into named,
+  typed values instead of collapsing into one `label` string, so the editor can
+  address a property rather than read a summary. Optional, so a snapshot from
+  an older runtime still decodes.
+- Properties an application could not have written are reported rather than
+  hidden, carrying the reason: a `TextField`'s text is `bound to app state`, an
+  `Image`'s dimensions are `image pixels`, a modal's overlay is a
+  `theme default`.
+- `CiderProject` now depends on `CiderInspector`, so the console can decode the
+  snapshot it serves instead of duck-typing it in JavaScript. This keeps the
+  rule that the CLI links neither the runtime nor a backend: `CiderInspector`
+  depends only on `CiderCore` and `CiderUITree`.
+
 **Toolchain**
 
 - `cider doctor` — checks host OS, architecture, Swift version, C compiler,

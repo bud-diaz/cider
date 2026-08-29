@@ -240,12 +240,17 @@ function renderProperties() {
   if (node.frame) {
     rows += propertyRow('frame', `${node.frame.x}, ${node.frame.y}  ${node.frame.width}x${node.frame.height}`, 'points');
   }
-  // Typed properties land with the richer snapshot; until then the inspector's
-  // own summary is the honest thing to show rather than an empty panel.
   if (Array.isArray(node.properties) && node.properties.length) {
-    rows += node.properties.map((property) => propertyRow(property.name, property.value, property.editable ? '' : 'read-only')).join('');
+    // A property with no source form is still shown, with the reason. Hiding
+    // what cannot be changed makes the panel harder to trust, not simpler.
+    rows += node.properties
+      .map((property) => propertyRow(property.name, property.value, property.editable ? '' : (property.note || 'read-only')))
+      .join('');
   } else if (node.label) {
+    // An older runtime, or a node kind that exposes nothing.
     rows += propertyRow('summary', node.label);
+  } else {
+    rows += propertyRow('properties', 'none', 'nothing this view wrote');
   }
   $('properties').innerHTML = rows;
 }

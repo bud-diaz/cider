@@ -35,4 +35,59 @@ final class InspectorSnapshotTests: XCTestCase {
         let decoded = try JSONDecoder().decode(InspectorSnapshot.self, from: Data(json.utf8))
         XCTAssertEqual(decoded, snapshot)
     }
+
+    /// The editor addresses a value by name, so `label`'s single display string
+    /// is not enough. Each kind has to take itself apart.
+    func testSnapshotCarriesTypedPropertiesPerNodeKind() throws {
+        let field = UINode.textField(TextFieldNode(
+            id: .root.child(0),
+            text: "typed",
+            font: FontRequest(size: 14, weight: .bold),
+            textColor: .white,
+            backgroundColor: .black,
+            cornerRadius: 5,
+            padding: EdgeInsets(horizontal: 12, vertical: 6),
+            width: 180
+        ))
+        let root = UINode.vstack(VStackNode(id: .root, spacing: 9, alignment: .leading, children: [field]))
+        let snapshot = Inspector.snapshot(node: root, layout: nil, renderTree: nil, frameCount: 1, generatedAtMilliseconds: 0)
+
+        let stack = try XCTUnwrap(snapshot.nodes.first { $0.kind == "VStackNode" })
+        let stackProperties = try XCTUnwrap(stack.properties)
+        XCTAssertEqual(stackProperties.first { $0.name == "spacing" }?.value, "9.0")
+        let alignment = try XCTUnwrap(stackProperties.first { $0.name == "alignment" })
+        XCTAssertEqual(alignment.value, "leading")
+        XCTAssertEqual(alignment.options, ["leading", "center", "trailing"])
+        XCTAssertTrue(alignment.editable)
+
+        let node = try XCTUnwrap(snapshot.nodes.first { $0.kind == "TextFieldNode" })
+        let properties = try XCTUnwrap(node.properties)
+        XCTAssertEqual(properties.first { $0.name == "fontSize" }?.value, "14.0")
+        XCTAssertEqual(properties.first { $0.name == "fontWeight" }?.value, "bold")
+        XCTAssertEqual(properties.first { $0.name == "cornerRadius" }?.value, "5.0")
+        XCTAssertEqual(properties.first { $0.name == "paddingHorizontal" }?.value, "12.0")
+        XCTAssertEqual(properties.first { $0.name == "paddingVertical" }?.value, "6.0")
+        XCTAssertEqual(properties.first { $0.name == "width" }?.value, "180.0")
+        XCTAssertEqual(properties.first { $0.name == "textColor" }?.value, "#FFFFFFFF")
+
+        // Bound state is reported, and reported as not editable: writing it
+        // would mean writing application state, which source write-back cannot.
+        let text = try XCTUnwrap(properties.first { $0.name == "text" })
+        XCTAssertEqual(text.value, "typed")
+        XCTAssertFalse(text.editable)
+        XCTAssertEqual(text.note, "bound to app state")
+    }
+
+    /// A snapshot written before typed properties existed still decodes, so a
+    /// dashboard and a runtime can be one version apart without the console
+    /// failing to read anything at all.
+    func testSnapshotWithoutPropertiesStillDecodes() throws {
+        let json = """
+            {"frameCount":1,"generatedAtMilliseconds":1,\
+            "nodes":[{"id":"root","kind":"TextNode","label":"Hi","depth":0}],\
+            "renderCommands":[],"hitRegions":[]}
+            """
+        let decoded = try JSONDecoder().decode(InspectorSnapshot.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.nodes[0].properties)
+    }
 }
