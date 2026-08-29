@@ -22,7 +22,7 @@ public struct Text: CiderView {
         self.content = content
         self.font = FontRequest(size: Theme.bodyFontSize, weight: .regular)
         self.color = Theme.textColor
-        self.origins = SourceOriginTable(file: file, line: line, column: column, initializerProperties: ["text"])
+        self.origins = SourceOriginTable(view: "Text", file: file, line: line, column: column, initializerProperties: ["text"])
     }
 
     public var body: Never { fatalError("Text has no body") }

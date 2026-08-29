@@ -33,7 +33,7 @@ public struct VStack<Content: CiderView>: CiderView {
         self.content = content()
         self.spacing = spacing ?? Theme.stackSpacing
         self.alignment = alignment ?? .center
-        self.origins = SourceOriginTable(file: file, line: line, column: column)
+        self.origins = SourceOriginTable(view: "VStack", file: file, line: line, column: column)
         self.origins.recordIfWritten("spacing", spacing != nil)
         self.origins.recordIfWritten("alignment", alignment != nil)
     }

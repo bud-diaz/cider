@@ -52,6 +52,7 @@ public enum DevDashboardAssets {
             <div class="proof-panel">
               <div class="proof-header"><span id="properties-title">PROPERTIES</span><span id="selectionPath" class="stream-badge">nothing selected</span></div>
               <div id="properties" class="proof-body" aria-labelledby="properties-title">Click a view in the preview to select it.</div>
+              <p id="editStatus" class="stage-status" role="status" aria-live="polite">Editable values write straight to the Swift source.</p>
             </div>
           </div>
         </section>
@@ -316,6 +317,9 @@ button:focus-visible, .resource-row:focus-visible, .file:focus-visible, .node:fo
 .prop-name { color: var(--text-muted); }
 .prop-value { color: var(--text-primary); overflow-wrap: anywhere; }
 .prop-note { color: var(--text-dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.prop-input { width: 100%; max-width: 190px; padding: 3px 7px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--bg-panel-deep); color: var(--text-primary); font-family: var(--mono); font-size: 11px; }
+.prop-input:focus-visible { outline: 1px solid var(--accent-amber); outline-offset: 1px; border-color: var(--border-hover); }
+.prop-input[type="checkbox"] { width: auto; }
 .token-keyword { color: var(--accent-rose); }
 .token-identifier { color: var(--accent-amber); }
 .token-string { color: var(--accent-emerald); }
@@ -492,6 +496,10 @@ for (const button of copyButtons) {
 let editorNodes = [];
 let editorLogicalWidth = 0;
 let selectedNodeID = null;
+// Set the moment an edit is written, cleared when the console reports the
+// application running again. Positions in the panel refer to the file as it was
+// before the edit, so a second edit aimed at them could land in the wrong place.
+let awaitingRebuild = false;
 
 async function drawFrame() {
   const response = await fetch('/api/inspector/frame');
@@ -592,7 +600,81 @@ function propertyRow(name, value, note, origin) {
     + `<span class="prop-value">${escapeHTML(value)}${suffix}</span></div>`;
 }
 
+function editableRow(property, origin) {
+  const trailer = origin ? originLabel(origin) : 'default';
+  const control = property.type === 'enum'
+    ? `<select class="prop-input" data-property="${escapeHTML(property.name)}">`
+      + (property.options || []).map((option) =>
+          `<option value="${escapeHTML(option)}"${option === property.value ? ' selected' : ''}>${escapeHTML(option)}</option>`
+        ).join('')
+      + '</select>'
+    : `<input class="prop-input" type="${property.type === 'bool' ? 'checkbox' : 'text'}" `
+      + `data-property="${escapeHTML(property.name)}" `
+      + (property.type === 'bool'
+          ? (property.value === 'true' ? 'checked' : '')
+          : `value="${escapeHTML(property.value)}"`)
+      + '>';
+  return `<div class="prop-row"><label class="prop-name" for="">${escapeHTML(property.name)}</label>`
+    + `<span class="prop-value">${control}`
+    + ` <span class="prop-note">${escapeHTML(trailer)}</span></span></div>`;
+}
+
+/// Turns a displayed value into the Swift literal the rewriter expects. The
+/// panel shows `bold`, `Cider Demo`, `#E89A2FFF`; the source needs `.bold`,
+/// `"Cider Demo"`, `Color(hex: 0xE89A2F)`.
+function swiftLiteral(property, raw) {
+  if (property.type === 'enum') return '.' + raw;
+  if (property.type === 'bool') return raw ? 'true' : 'false';
+  if (property.type === 'color') {
+    const hex = String(raw).replace('#', '').slice(0, 6);
+    return `Color(hex: 0x${hex.toUpperCase()})`;
+  }
+  if (property.type === 'string') return JSON.stringify(String(raw));
+  return String(raw);
+}
+
+/// Values of the other arguments in the same call, needed when the call has to
+/// be written from scratch. Sent every time; the rewriter ignores them when it
+/// is only replacing an argument that is already there.
+const siblingsByProperty = {
+  fontSize: { weight: 'fontWeight' },
+  fontWeight: { size: 'fontSize' },
+  paddingHorizontal: { vertical: 'paddingVertical' },
+  paddingVertical: { horizontal: 'paddingHorizontal' },
+  backgroundColor: { pressed: 'pressedBackgroundColor' },
+  pressedBackgroundColor: { _0: 'backgroundColor' },
+};
+
+async function applyEdit(node, property, rawValue) {
+  // No origin means nobody wrote this node -- a synthetic wrapper -- and there
+  // is nothing in the source to point an edit at.
+  if (!node.origin || !node.view) return;
+  const siblings = {};
+  for (const [label, source] of Object.entries(siblingsByProperty[property.name] || {})) {
+    const sibling = (node.properties || []).find((candidate) => candidate.name === source);
+    if (sibling) siblings[label] = swiftLiteral(sibling, sibling.value);
+  }
+
+  await post('/api/editor/apply', {
+    file: node.origin.file,
+    line: node.origin.line,
+    column: node.origin.column,
+    head: node.view,
+    property: property.name,
+    value: swiftLiteral(property, rawValue),
+    expectedCurrentValue: property.origin ? property.value : null,
+    siblingValues: siblings,
+  });
+}
+
+
 function renderProperties() {
+  // The refresh loop calls this every second. Rebuilding the panel under a
+  // field someone is typing in would discard what they typed, so leave it
+  // alone until focus moves on.
+  const active = document.activeElement;
+  if (active && active.classList && active.classList.contains('prop-input')) return;
+
   const node = editorNodes.find((candidate) => candidate.id === selectedNodeID);
   if (!node) {
     $('selectionPath').textContent = 'nothing selected';
@@ -620,13 +702,16 @@ function renderProperties() {
   if (Array.isArray(node.properties) && node.properties.length) {
     // A property with no source form is still shown, with the reason. Hiding
     // what cannot be changed makes the panel harder to trust, not simpler.
+    const writable = Boolean(node.origin && node.view) && !awaitingRebuild;
     rows += node.properties
-      .map((property) => propertyRow(
-        property.name,
-        property.value,
-        property.editable ? 'default' : (property.note || 'read-only'),
-        property.origin
-      ))
+      .map((property) => (property.editable && writable)
+        ? editableRow(property, property.origin)
+        : propertyRow(
+            property.name,
+            property.value,
+            property.editable ? (awaitingRebuild ? 'rebuilding' : 'default') : (property.note || 'read-only'),
+            property.origin
+          ))
       .join('');
   } else if (node.label) {
     // An older runtime, or a node kind that exposes nothing.
@@ -635,6 +720,27 @@ function renderProperties() {
     rows += propertyRow('properties', 'none', 'nothing this view wrote');
   }
   $('properties').innerHTML = rows;
+
+  for (const input of $('properties').querySelectorAll('.prop-input')) {
+    const property = (node.properties || []).find((candidate) => candidate.name === input.dataset.property);
+    if (!property) continue;
+    // `change`, not `input`: an edit rewrites a file and relaunches the
+    // application, so it fires when the developer is done typing rather than
+    // on every keystroke.
+    input.onchange = async () => {
+      const raw = input.type === 'checkbox' ? input.checked : input.value;
+      try {
+        await applyEdit(node, property, raw);
+        awaitingRebuild = true;
+        $('editStatus').textContent = `wrote ${property.name} to ${originLabel(node.origin)}`;
+        $('editStatus').className = 'stage-status severity-success';
+      } catch (error) {
+        $('editStatus').textContent = error.message;
+        $('editStatus').className = 'stage-status severity-error';
+        renderProperties();
+      }
+    };
+  }
 }
 
 async function refresh() {
@@ -644,6 +750,7 @@ async function refresh() {
     const statusSeverity = severityForText(state);
     $('status').textContent = `${status.project} · ${state}`;
     $('status').className = `status-pill severity-${statusSeverity}`;
+    if (state === 'running' || state === 'watching') awaitingRebuild = false;
     $('sessionSummary').textContent = `${status.project} · ${state}`;
 
     const inspector = await json('/api/inspector/latest');

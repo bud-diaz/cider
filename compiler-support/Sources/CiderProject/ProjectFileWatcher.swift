@@ -59,8 +59,17 @@ public final class ProjectFileWatcher {
         return files
     }
 
-    private static func shouldWatch(_ url: URL) -> Bool {
+    /// Whether a change to this file would trigger a rebuild.
+    ///
+    /// Public because the editor has to refuse a write the watcher would not
+    /// notice: an edit that never rebuilds looks to the developer like an edit
+    /// that silently did nothing.
+    static func isWatched(_ url: URL) -> Bool {
         let name = url.lastPathComponent
         return url.pathExtension == "swift" || name == "Package.swift" || name == "Cider.yaml"
+    }
+
+    private static func shouldWatch(_ url: URL) -> Bool {
+        isWatched(url)
     }
 }

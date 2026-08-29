@@ -42,6 +42,14 @@ public struct SourceOrigin: Codable, Equatable, Sendable {
 
 /// Where one node, and each value on it, was written.
 public struct NodeOrigins: Codable, Equatable, Sendable {
+    /// The name of the view type that produced this node -- `Text`, `List`.
+    ///
+    /// Recorded rather than derived from the node's kind, because the two do
+    /// not always match: a `List` lowers to a `ScrollViewNode`, so a consumer
+    /// reading the kind alone would look for the wrong expression in the
+    /// source and find nothing.
+    public var view: String
+
     /// The call that constructed the view.
     public var construction: SourceOrigin
 
@@ -55,7 +63,8 @@ public struct NodeOrigins: Codable, Equatable, Sendable {
     /// argument, and writing one that is absent means inserting a call.
     public var properties: [String: SourceOrigin]
 
-    public init(construction: SourceOrigin, properties: [String: SourceOrigin] = [:]) {
+    public init(view: String, construction: SourceOrigin, properties: [String: SourceOrigin] = [:]) {
+        self.view = view
         self.construction = construction
         self.properties = properties
     }

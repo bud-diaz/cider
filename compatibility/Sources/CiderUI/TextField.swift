@@ -36,7 +36,7 @@ public struct TextField: CiderView {
         self.font = FontRequest(size: Theme.bodyFontSize, weight: .regular)
         // `text` is deliberately absent: it is the bound state's value, not
         // anything written at this call site.
-        self.origins = SourceOriginTable(file: file, line: line, column: column, initializerProperties: ["width"])
+        self.origins = SourceOriginTable(view: "TextField", file: file, line: line, column: column, initializerProperties: ["width"])
     }
 
     public var body: Never { fatalError("TextField has no body") }

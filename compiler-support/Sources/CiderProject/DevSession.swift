@@ -103,6 +103,9 @@ public final class DevSession {
         try process.run()
         appProcess = process
         dashboard.state = "running"
+        // The relaunch is what makes the panel's source positions current
+        // again, so it is what releases the editor to accept another edit.
+        dashboard.noteRebuildObserved()
         events.append(kind: "app", message: "launched \(artifact.path)")
     }
 

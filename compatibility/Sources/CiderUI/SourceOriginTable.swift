@@ -11,6 +11,7 @@
 import CiderCore
 
 struct SourceOriginTable {
+    private let view: String
     private let construction: SourceOrigin
     private var properties: [String: SourceOrigin]
 
@@ -19,11 +20,13 @@ struct SourceOriginTable {
     ///   there is no separate call to point at: `Text("x")` writes its text
     ///   wherever the `Text` itself is written.
     init(
+        view: String,
         file: String,
         line: Int,
         column: Int,
         initializerProperties: [String] = []
     ) {
+        self.view = view
         construction = SourceOrigin(file: file, line: line, column: column)
         properties = [:]
         for name in initializerProperties { properties[name] = construction }
@@ -47,6 +50,6 @@ struct SourceOriginTable {
     }
 
     var nodeOrigins: NodeOrigins {
-        NodeOrigins(construction: construction, properties: properties)
+        NodeOrigins(view: view, construction: construction, properties: properties)
     }
 }

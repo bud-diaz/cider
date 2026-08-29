@@ -104,6 +104,13 @@ public struct InspectorNodeSnapshot: Codable, Equatable, Sendable {
     /// point an edit at.
     public var origin: SourceOrigin?
 
+    /// The name of the view type that produced this node, when one is known.
+    ///
+    /// Not the same as `kind`: a `List` lowers to a `ScrollViewNode`, so an
+    /// editor working from the kind alone would look for the wrong expression
+    /// in the source.
+    public var view: String?
+
     public init(
         id: String,
         kind: String,
@@ -111,7 +118,8 @@ public struct InspectorNodeSnapshot: Codable, Equatable, Sendable {
         frame: InspectorRectSnapshot?,
         depth: Int,
         properties: [InspectorPropertySnapshot]? = nil,
-        origin: SourceOrigin? = nil
+        origin: SourceOrigin? = nil,
+        view: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -120,6 +128,7 @@ public struct InspectorNodeSnapshot: Codable, Equatable, Sendable {
         self.depth = depth
         self.properties = properties
         self.origin = origin
+        self.view = view
     }
 }
 
@@ -298,7 +307,8 @@ public enum Inspector {
                     attributed.origin = nodeOrigins?.properties[property.name]
                     return attributed
                 },
-                origin: nodeOrigins?.construction
+                origin: nodeOrigins?.construction,
+                view: nodeOrigins?.view
             )
         )
         let childLayouts = layout?.children ?? []

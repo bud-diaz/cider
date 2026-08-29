@@ -43,6 +43,7 @@ public struct List<Content: CiderView>: CiderView {
         self.height = height
         self.spacing = spacing ?? 0
         self.origins = SourceOriginTable(
+            view: "List",
             file: file,
             line: line,
             column: column,

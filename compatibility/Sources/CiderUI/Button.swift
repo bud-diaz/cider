@@ -43,7 +43,7 @@ public struct Button: CiderView {
         self.action = action
         self.font = FontRequest(size: Theme.bodyFontSize, weight: .regular)
         self.isEnabled = true
-        self.origins = SourceOriginTable(file: file, line: line, column: column, initializerProperties: ["title"])
+        self.origins = SourceOriginTable(view: "Button", file: file, line: line, column: column, initializerProperties: ["title"])
     }
 
     public var body: Never { fatalError("Button has no body") }

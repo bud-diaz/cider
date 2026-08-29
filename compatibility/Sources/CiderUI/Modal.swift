@@ -41,7 +41,7 @@ public struct Modal<Base: CiderView, Presented: CiderView>: CiderView {
         self.isPresented = isPresented
         self.base = content()
         self.presented = presenting()
-        self.origins = SourceOriginTable(file: file, line: line, column: column)
+        self.origins = SourceOriginTable(view: "Modal", file: file, line: line, column: column)
     }
 
     public var body: Never { fatalError("Modal has no body") }

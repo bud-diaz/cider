@@ -117,6 +117,28 @@ across two Ubuntu LTS releases (24.04, 22.04).
   beside one nobody wrote.
 - Conformance IDs `EDIT-ORIGIN-001` through `EDIT-ORIGIN-004`.
 
+**Source write-back**
+
+- `POST /api/editor/apply`: a property changed in the editor panel is written
+  into the project's Swift source, and the existing file watcher rebuilds and
+  relaunches. There is no runtime override channel -- the source stays the one
+  source of truth, at the cost of a rebuild per edit and app state resetting.
+- `SwiftSourceScanner`, `SwiftExpressionLocator` and `SwiftSourceEditor`: a
+  token scanner, a postfix-chain locator, and a rewriter that only ever
+  replaces a span it has proved is a literal or appends a fully-formed
+  modifier. No new dependency, and no Swift parser.
+- Edits are addressed by source position, never by `NodeID`. A structural path
+  can be re-keyed by a state change between the snapshot and the click; a file
+  position cannot.
+- Fourteen refusals, `CID0630`-`CID0643`, each carrying a reason and a remedy:
+  a value that is an expression rather than a literal, an interpolated string,
+  a named constant or theme colour, a path outside the project, a file the
+  watcher does not watch, a stale value, and an edit arriving while an earlier
+  one is still waiting for its rebuild.
+- Every applied edit is recorded in the event stream with what it replaced, so
+  an unwanted one is recoverable without relying on memory.
+- Conformance IDs `EDIT-WRITE-001` and `EDIT-REFUSE-001`.
+
 **Toolchain**
 
 - `cider doctor` — checks host OS, architecture, Swift version, C compiler,

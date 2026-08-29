@@ -21,8 +21,9 @@ not replace any of those and does not try to.
 > the text commands plus `cider dev`, a loopback-only graphical developer console
 > with structured runtime inspector snapshots, file-watching rebuild/relaunch,
 > request capture for `CiderHTTP`, a sandbox browser, and an editor tab that
-> mirrors the running application's frame in the browser and selects views by
-> clicking them. Stage 5 alpha-readiness
+> mirrors the running application's frame in the browser, selects views by
+> clicking them, and writes property changes back into the project's Swift
+> source. Stage 5 alpha-readiness
 > work has started with contract/policy/docs inventory via `cider alpha-readiness`;
 > public alpha is not complete yet.
 
@@ -76,7 +77,8 @@ Concretely:
   the current checkout.
 - **`cider dev`** — starts the local Stage 4 developer console on
   `127.0.0.1`: an editor tab mirroring the running application's frame with
-  click-to-select views, graphical inspector, file-watching rebuild/relaunch,
+  click-to-select views and property edits written back into the project's
+  Swift source, graphical inspector, file-watching rebuild/relaunch,
   `CiderHTTP` request capture, sandbox browser and event timeline.
 - **`cider build`** — locates the project, validates its manifest, compiles
   through SwiftPM, and reports the runnable artifact.
@@ -338,8 +340,13 @@ This is a Stage 4 MVP. The list is still long and honest:
   `cider scan`, `cider compatibility-docs`, `cider inspect`, `cider network`,
   `cider storage`, `cider init`, and `cider dev-loop`; `cider dev` adds the
   graphical local console, file-watching rebuild/relaunch, request capture, a
-  rich sandbox browser, and an editor tab that mirrors the presented frame and
-  selects views by clicking them. The frame mirror is throttled to five frames
+  rich sandbox browser, and an editor tab that mirrors the presented frame,
+  selects views by clicking them, and writes property changes back into the
+  Swift source. The editor changes properties only -- it never adds, deletes or
+  reorders views -- and only where the value is written as a literal the
+  rewriter can prove it understands; everything else is refused with a reason
+  rather than guessed at. Each accepted edit triggers a rebuild and relaunch,
+  so application state resets. The frame mirror is throttled to five frames
   a second and is written only under `cider dev`, never under `cider run`. The
   console binds to loopback and authenticates every request that changes state
   with a per-run token, because a loopback port is reachable from any page a

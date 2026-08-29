@@ -33,7 +33,7 @@ public struct NavigationView<Root: CiderView>: CiderView {
     ) {
         self.path = path
         self.root = root()
-        self.origins = SourceOriginTable(file: file, line: line, column: column)
+        self.origins = SourceOriginTable(view: "NavigationView", file: file, line: line, column: column)
     }
 
     public var body: Never { fatalError("NavigationView has no body") }

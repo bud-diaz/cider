@@ -28,6 +28,7 @@ public struct ScrollView<Content: CiderView>: CiderView {
         self.width = width
         self.height = height
         self.origins = SourceOriginTable(
+            view: "ScrollView",
             file: file,
             line: line,
             column: column,

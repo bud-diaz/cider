@@ -23,7 +23,7 @@ public struct Image: CiderView {
         column: Int = #column
     ) {
         self.source = source
-        self.origins = SourceOriginTable(file: file, line: line, column: column)
+        self.origins = SourceOriginTable(view: "Image", file: file, line: line, column: column)
     }
 
     public var body: Never { fatalError("Image has no body") }

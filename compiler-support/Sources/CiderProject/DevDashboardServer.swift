@@ -114,6 +114,7 @@ public final class DevDashboardServer: @unchecked Sendable {
     private let workspace: DevWorkspace
     private let events: DevEventLog
     private let sandbox: SandboxBrowser
+    private let editor: SourceEditService
     private var captured: [CapturedHTTPRequest] = []
     private let port: Int
     private let sessionToken: DevSessionToken
@@ -131,6 +132,7 @@ public final class DevDashboardServer: @unchecked Sendable {
         self.workspace = workspace
         self.events = events
         self.sandbox = SandboxBrowser(project: project)
+        self.editor = SourceEditService(project: project, events: events)
         self.port = port
         self.sessionToken = sessionToken
         self.dashboardURL = "http://127.0.0.1:\(port)/"
@@ -207,15 +209,41 @@ public final class DevDashboardServer: @unchecked Sendable {
                 return .json(try sandbox.tree())
             case ("GET", "/api/sandbox/file"):
                 return .json(try sandbox.preview(relativePath: query["path"] ?? ""))
+            case ("POST", "/api/editor/apply"):
+                let request = try JSONDecoder().decode(SourceEditRequest.self, from: body)
+                return .json(try editor.apply(request))
             case ("POST", "/api/sandbox/reset"):
                 try sandbox.reset(); events.append(kind: "sandbox", message: "sandbox reset"); return .json(["ok": true])
             default:
                 return DevDashboardResponse(status: 404, contentType: "text/plain", body: Data("not found".utf8))
             }
+        } catch let diagnostic as Diagnostic {
+            // A refusal is an answer, not a server failure: it names what the
+            // editor would not do and what the developer can do instead.
+            return .refusal(diagnostic, status: status(for: diagnostic))
         } catch {
             return DevDashboardResponse(status: 500, contentType: "text/plain", body: Data(String(describing: error).utf8))
         }
     }
+
+    /// Maps a refusal onto the status that describes it. Everything the editor
+    /// declines is the request's problem, not the server's.
+    private func status(for diagnostic: Diagnostic) -> Int {
+        switch diagnostic.code {
+        case "CID0634", "CID0642": return 409
+        case "CID0631": return 403
+        case "CID0630": return 413
+        default: return 400
+        }
+    }
+
+    /// Called when a snapshot newer than the last edit lands, meaning the
+    /// application has relaunched and the panel's positions are current again.
+    public func noteRebuildObserved() {
+        editor.rebuildObserved()
+    }
+
+    public var isAwaitingRebuild: Bool { editor.isAwaitingRebuild }
 
     /// The preflight a custom request header forces. Answering it is what lets
     /// the dashboard send `X-Cider-Dev-Token` at all.

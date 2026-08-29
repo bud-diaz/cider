@@ -208,6 +208,9 @@ button:focus-visible, .resource-row:focus-visible, .file:focus-visible, .node:fo
 .prop-name { color: var(--text-muted); }
 .prop-value { color: var(--text-primary); overflow-wrap: anywhere; }
 .prop-note { color: var(--text-dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.prop-input { width: 100%; max-width: 190px; padding: 3px 7px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--bg-panel-deep); color: var(--text-primary); font-family: var(--mono); font-size: 11px; }
+.prop-input:focus-visible { outline: 1px solid var(--accent-amber); outline-offset: 1px; border-color: var(--border-hover); }
+.prop-input[type="checkbox"] { width: auto; }
 .token-keyword { color: var(--accent-rose); }
 .token-identifier { color: var(--accent-amber); }
 .token-string { color: var(--accent-emerald); }
