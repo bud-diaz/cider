@@ -614,9 +614,11 @@ function editableRow(property, origin) {
           ? (property.value === 'true' ? 'checked' : '')
           : `value="${escapeHTML(property.value)}"`)
       + '>';
-  return `<div class="prop-row"><label class="prop-name" for="">${escapeHTML(property.name)}</label>`
-    + `<span class="prop-value">${control}`
-    + ` <span class="prop-note">${escapeHTML(trailer)}</span></span></div>`;
+  // A label wrapping its control needs no `for`, and keeps the pair associated
+  // for a screen reader without inventing ids that have to stay unique.
+  return `<div class="prop-row"><span class="prop-name">${escapeHTML(property.name)}</span>`
+    + `<label class="prop-value" aria-label="${escapeHTML(property.name)}">${control}`
+    + ` <span class="prop-note">${escapeHTML(trailer)}</span></label></div>`;
 }
 
 /// Turns a displayed value into the Swift literal the rewriter expects. The

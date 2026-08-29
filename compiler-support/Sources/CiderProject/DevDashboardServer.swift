@@ -210,7 +210,16 @@ public final class DevDashboardServer: @unchecked Sendable {
             case ("GET", "/api/sandbox/file"):
                 return .json(try sandbox.preview(relativePath: query["path"] ?? ""))
             case ("POST", "/api/editor/apply"):
-                let request = try JSONDecoder().decode(SourceEditRequest.self, from: body)
+                // A malformed body is the request's problem, not the server's,
+                // so it gets a diagnostic rather than falling through to a 500.
+                guard let request = try? JSONDecoder().decode(SourceEditRequest.self, from: body) else {
+                    throw Diagnostic(
+                        code: "CID0643",
+                        summary: "malformed source edit request",
+                        reason: "The request body was not a source edit the console understands.",
+                        remedy: "Reload the dashboard at \(dashboardURL) and try the edit again."
+                    )
+                }
                 return .json(try editor.apply(request))
             case ("POST", "/api/sandbox/reset"):
                 try sandbox.reset(); events.append(kind: "sandbox", message: "sandbox reset"); return .json(["ok": true])
