@@ -12,11 +12,13 @@
 //    UI-TEXT-001       Text renders at the right place with the right content
 //    UI-VSTACK-001     VStack stacks and aligns its children
 //    UI-BUTTON-001     Button draws a background, a label and a hit region
+//    UI-BUTTON-002     Button's style modifiers reach ButtonNode, and unset ones stay Theme's
 //    INPUT-POINTER-001 a pointer becomes a touch, and a touch hit-tests
 //    STATE-UPDATE-001  a button action changes state and the next frame shows it
 //    UI-IMAGE-001      Image lowers to an ImageNode and draws at its intrinsic size
 //    UI-SCROLL-001     ScrollView clips its content and scrolling moves it, clamped
 //    UI-TEXTFIELD-001  TextField gains focus on tap and edits its bound state
+//    UI-TEXTFIELD-002  TextField's style modifiers reach TextFieldNode, and unset ones stay Theme's
 //    UI-LIST-001       List's rows keep source order and scroll like a ScrollView
 //    NAV-PUSH-001      NavigationView lowers to a NavigationStackNode and pushes screens
 //    NAV-POP-001       popping a navigation stack returns to the screen underneath
@@ -103,6 +105,67 @@ final class ConformanceTests: XCTestCase {
             XCTAssertEqual(diagnostic?.code, "CID0201")
             XCTAssertTrue(diagnostic?.remedy?.contains("phone-standard") ?? false)
         }
+    }
+
+    // MARK: - UI-BUTTON-002
+
+    /// UI-BUTTON-002: `Button`'s style modifiers reach `ButtonNode`.
+    ///
+    /// These properties were hard-wired from `Theme` until the visual editor
+    /// needed them to be things a developer had actually written -- an editor
+    /// cannot offer to change a value that has no source to change.
+    func testUI_BUTTON_002_styleModifiersReachTheNode() throws {
+        let scene = Lowering.scene(from: StyledButtonApp().body)
+        guard case .button(let button) = scene.root else {
+            return XCTFail("expected a ButtonNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(button.titleColor, Color(hex: 0x101010))
+        XCTAssertEqual(button.backgroundColor, Color(hex: 0x2040C0))
+        XCTAssertEqual(button.pressedBackgroundColor, Color(hex: 0x3050D0))
+        XCTAssertEqual(button.cornerRadius, 2)
+        XCTAssertEqual(button.padding, EdgeInsets(horizontal: 30, vertical: 14))
+    }
+
+    /// UI-BUTTON-002: a button nobody styled still gets every `Theme` default.
+    /// The modifiers are additive; they do not move where the defaults live.
+    func testUI_BUTTON_002_unstyledButtonKeepsThemeDefaults() throws {
+        let scene = Lowering.scene(from: CounterApp().body)
+        guard case .vstack(let stack) = scene.root,
+              case .button(let button) = stack.children[1] else {
+            return XCTFail("expected a ButtonNode as the second child")
+        }
+        XCTAssertEqual(button.titleColor, Theme.accentTextColor)
+        XCTAssertEqual(button.backgroundColor, Theme.accentColor)
+        XCTAssertEqual(button.pressedBackgroundColor, Theme.accentPressedColor)
+        XCTAssertEqual(button.cornerRadius, Theme.buttonCornerRadius)
+        XCTAssertEqual(button.padding, Theme.buttonPadding)
+    }
+
+    // MARK: - UI-TEXTFIELD-002
+
+    /// UI-TEXTFIELD-002: `TextField`'s style modifiers reach `TextFieldNode`.
+    func testUI_TEXTFIELD_002_styleModifiersReachTheNode() throws {
+        let scene = Lowering.scene(from: StyledTextFieldApp().body)
+        guard case .textField(let field) = scene.root else {
+            return XCTFail("expected a TextFieldNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(field.textColor, Color(hex: 0xEFEFEF))
+        XCTAssertEqual(field.backgroundColor, Color(hex: 0x202020))
+        XCTAssertEqual(field.cornerRadius, 3)
+        XCTAssertEqual(field.padding, EdgeInsets(horizontal: 18, vertical: 6))
+        XCTAssertEqual(field.width, 120, "styling must not disturb the initializer's width")
+    }
+
+    /// UI-TEXTFIELD-002: an unstyled field still gets every `Theme` default.
+    func testUI_TEXTFIELD_002_unstyledFieldKeepsThemeDefaults() throws {
+        let scene = Lowering.scene(from: TextFieldTestApp().body)
+        guard case .textField(let field) = scene.root else {
+            return XCTFail("expected a TextFieldNode, got \(scene.root.kindName)")
+        }
+        XCTAssertEqual(field.textColor, Theme.textColor)
+        XCTAssertEqual(field.backgroundColor, Theme.textFieldBackgroundColor)
+        XCTAssertEqual(field.cornerRadius, Theme.textFieldCornerRadius)
+        XCTAssertEqual(field.padding, Theme.textFieldPadding)
     }
 
     // MARK: - STYLE-BRAND-001

@@ -10,6 +10,14 @@ public struct TextField: CiderView {
     private var width: Double
     private var font: FontRequest
 
+    // Optional and resolved against `Theme` at lowering time, for the same
+    // reason as `Button`: the visual editor has to tell "the developer wrote
+    // this colour" apart from "nobody wrote one".
+    private var textColor: Color?
+    private var backgroundColor: Color?
+    private var cornerRadius: Double?
+    private var padding: EdgeInsets?
+
     /// `width` is the field's own width -- see `TextFieldNode`'s doc comment
     /// for why this is explicit rather than sized to the current text or
     /// inherited from a parent.
@@ -27,6 +35,35 @@ public struct TextField: CiderView {
         return copy
     }
 
+    /// The colour of the field's text.
+    public func foregroundColor(_ color: Color) -> TextField {
+        var copy = self
+        copy.textColor = color
+        return copy
+    }
+
+    /// The field's fill colour. A text field has no pressed state, so unlike
+    /// `Button.background(_:pressed:)` this takes one colour.
+    public func background(_ color: Color) -> TextField {
+        var copy = self
+        copy.backgroundColor = color
+        return copy
+    }
+
+    public func cornerRadius(_ radius: Double) -> TextField {
+        var copy = self
+        copy.cornerRadius = radius
+        return copy
+    }
+
+    /// Insets between the field's text and its edges. See
+    /// `Button.padding(horizontal:vertical:)` for why this is two scalars.
+    public func padding(horizontal: Double, vertical: Double) -> TextField {
+        var copy = self
+        copy.padding = EdgeInsets(horizontal: horizontal, vertical: vertical)
+        return copy
+    }
+
     public func _lower(into context: LoweringContext) {
         let id = context.reserveIdentity()
         context.emit(
@@ -35,10 +72,10 @@ public struct TextField: CiderView {
                     id: id,
                     text: binding.wrappedValue,
                     font: font,
-                    textColor: Theme.textColor,
-                    backgroundColor: Theme.textFieldBackgroundColor,
-                    cornerRadius: Theme.textFieldCornerRadius,
-                    padding: Theme.textFieldPadding,
+                    textColor: textColor ?? Theme.textColor,
+                    backgroundColor: backgroundColor ?? Theme.textFieldBackgroundColor,
+                    cornerRadius: cornerRadius ?? Theme.textFieldCornerRadius,
+                    padding: padding ?? Theme.textFieldPadding,
                     width: width
                 )
             )

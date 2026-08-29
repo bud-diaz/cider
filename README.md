@@ -84,7 +84,9 @@ Concretely:
   virtual-device window, runs the application, and shuts down cleanly.
 - **A declarative Swift API** — `CiderApp`, `CiderView`, `Text`, `Button`,
   `VStack`, `Image`, `ScrollView`, `TextField`, `List`, `NavigationView`,
-  `Modal`, `@CiderState`.
+  `Modal`, `@CiderState`, and per-control style modifiers: `.font`,
+  `.foregroundColor`, `.disabled`, and on `Button` and `TextField` also
+  `.background`, `.cornerRadius` and `.padding`.
 - **A normalized UI tree** with stable identity, a two-pass layout engine,
   clipping, and a portable software rasterizer with antialiased rounded
   rectangles.
@@ -310,8 +312,10 @@ This is a Stage 4 MVP. The list is still long and honest:
   sheets (a presented `Modal` is always full-screen), and no full XIM/IME
   composed text on the real X11 backend. Basic keymap text now flows through
   XLookupString-backed `HostEvent.textInput`; Backspace remains raw-key handling.
-- **Layout**: no constraints, no text wrapping, no frame or padding
-  modifiers. The root either centres one node in the safe area (most node
+- **Layout**: no constraints, no text wrapping, and no general `.frame` or
+  `.padding` on arbitrary views -- padding is settable on `Button` and
+  `TextField` only, through their own modifiers. The root either centres one
+  node in the safe area (most node
   kinds) or fills it (`NavigationView`, `Modal`) — see
   `LayoutEngine.layoutCentered`'s doc comment.
 - **Text**: one line, left to right, with kerning. No bidirectional reordering

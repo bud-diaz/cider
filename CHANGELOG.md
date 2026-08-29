@@ -38,6 +38,22 @@ across two Ubuntu LTS releases (24.04, 22.04).
   expensive thing in the process.
 - `GET /api/inspector/frame` on the dev dashboard, 204 until a frame exists.
 
+**UI style modifiers**
+
+- `Button.foregroundColor(_:)`, `Button.background(_:pressed:)`,
+  `Button.cornerRadius(_:)`, `Button.padding(horizontal:vertical:)`, and the
+  matching `TextField.foregroundColor(_:)`, `TextField.background(_:)`,
+  `TextField.cornerRadius(_:)`, `TextField.padding(horizontal:vertical:)`.
+  These properties existed on `ButtonNode` and `TextFieldNode` but were
+  hard-wired from `Theme`, so no application could set them and the editor
+  could only ever show them read-only. Unset properties still resolve to
+  `Theme` at lowering time, so every existing default is unchanged.
+- `Button.background` requires the pressed colour as well as the resting one.
+  Deriving one from the other means choosing a colour space and a factor, and
+  a factor that reads correctly on a mid-tone background reads as a broken
+  button on a dark or fully saturated one.
+- Conformance IDs `UI-BUTTON-002` and `UI-TEXTFIELD-002`.
+
 **Toolchain**
 
 - `cider doctor` — checks host OS, architecture, Swift version, C compiler,
